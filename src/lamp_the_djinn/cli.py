@@ -143,6 +143,13 @@ def stage_claude_config(home: Path, dest: Path) -> None:
             shutil.copy2(src, target)
 
 
+# The cage user's ids. The Dockerfile renames whatever user the Playwright base
+# image left at 1000 to `node` (usermod -l / groupmod -n), so this is structural,
+# not configuration.
+CAGE_USER_UID = 1000
+CAGE_USER_GID = 1000
+
+
 def modify_config(
     config: dict,
     args: argparse.Namespace,
@@ -162,6 +169,17 @@ def modify_config(
     if args.build and devcontainer_dir:
         config.pop("image", None)
         config["build"] = {"dockerfile": "Dockerfile", "context": "."}
+
+    # Skip devcontainer's UID-remap step when it would rename the cage user to the
+    # ids it already has. Left on (its default for a non-root remoteUser), the CLI
+    # builds and exports an extra derived image on EVERY `up` -- and the cage is
+    # torn down per run, so that cost is never amortized. Measured 2.4s -> 2.0s.
+    #
+    # BOTH ids must match: the remap sets uid and gid together, so opting out on a
+    # partial match would leave bind-mounted files wrong-grouped, which is the
+    # breakage the remap exists to prevent.
+    if os.getuid() == CAGE_USER_UID and os.getgid() == CAGE_USER_GID:
+        config["updateRemoteUserUID"] = False
 
     # Mount the project at its OWN host path (path identity), so absolute paths the
     # agent emits (code, configs, logs, commits) stay valid on the host -- no
