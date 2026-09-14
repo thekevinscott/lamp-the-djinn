@@ -7,6 +7,7 @@ ARG TZ
 ENV TZ="$TZ"
 
 ARG CLAUDE_CODE_VERSION=latest
+ARG PI_VERSION=latest
 
 # Install basic development tools and iptables/ipset
 # Note: Playwright image is Ubuntu-based, so we use apt-get
@@ -54,6 +55,12 @@ COPY whitelisted-domains.txt /usr/local/share/whitelisted-domains.txt
 # Install Claude Code globally as root
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
   npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+
+# Install pi globally too. The default (untrusted) run mounts no harness package
+# cache, so a bare `npx -y @earendil-works/pi-coding-agent` re-downloads pi on
+# every single run -- ~3s of pure startup latency for a harness in routine use.
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+  npm install -g @earendil-works/pi-coding-agent@${PI_VERSION}
 
 # Rename existing UID 1000 user to 'node' for devcontainer compatibility
 # The Playwright image may have 'pwuser' or 'ubuntu' user at UID 1000 depending on version

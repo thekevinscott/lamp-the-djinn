@@ -42,8 +42,13 @@ pi (`@earendil-works/pi-coding-agent`), for example, resolves providers only fro
 command as one string:
 
 ```bash
-ltd -v ~/.pi/agent/models.json 'npx -y @earendil-works/pi-coding-agent'
+ltd -v ~/.pi/agent/models.json pi
 ```
+
+`pi` and `claude` are preinstalled in the cage image, so naming them directly
+costs nothing at startup. `npx -y @earendil-works/pi-coding-agent` still works
+and is how you pin a specific version, but it re-downloads the package on every
+run — the default (untrusted) run mounts no package cache.
 
 Scope the mount to the single file the harness needs — not the whole `~/.pi`.
 That directory also holds `auth.json` (your pi credentials), and **everything
