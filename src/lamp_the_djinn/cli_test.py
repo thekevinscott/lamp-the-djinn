@@ -55,6 +55,12 @@ def describe_command_parsing():
         args = parser.parse_args(["npx", "@anthropic/claude"])
         assert args.command == ["npx", "@anthropic/claude"]
 
+    def it_passes_harness_resume_flags_through():
+        """pi's -c/--continue survives REMAINDER untouched (ltd pi -c)."""
+        parser = create_parser()
+        args = parser.parse_args(["pi", "--continue"])
+        assert args.command == ["pi", "--continue"]
+
     def it_does_not_steal_command_flags_matching_ltd_flags():
         """ltd's -p stops at the first command token; later -p belongs to the command."""
         parser = create_parser()

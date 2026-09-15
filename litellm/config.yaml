@@ -40,6 +40,36 @@ model_list:
           order: ["DeepInfra"]
           allow_fallbacks: true
 
+  # --- GLM-5.3 Flash via OpenRouter (fast/cheap GLM variant) ---
+  # Same routing policy as glm-5.2: prefer DeepInfra, fall back to any provider.
+  # Adjust `order` if a preferred provider for the flash variant emerges.
+  - model_name: glm-5.3-flash
+    litellm_params:
+      model: openrouter/z-ai/glm-5.3-flash
+      api_key: os.environ/OPENROUTER_API_KEY
+      extra_body:
+        provider:
+          order: ["DeepInfra"]
+          allow_fallbacks: true
+
+  - model_name: kimi-k3
+    litellm_params:
+      model: openrouter/moonshotai/kimi-k3
+      api_key: os.environ/OPENROUTER_API_KEY
+      extra_body:
+        provider:
+          order: ["DeepInfra"]
+          allow_fallbacks: true
+
+  - model_name: gpt-oss-120b
+    litellm_params:
+      model: openrouter/openai/gpt-oss-120b
+      api_key: os.environ/OPENROUTER_API_KEY
+      extra_body:
+        provider:
+          order: ["Cerebras"]
+          allow_fallbacks: false
+
 litellm_settings:
   num_retries: 2
   request_timeout: 600

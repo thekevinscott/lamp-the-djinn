@@ -62,3 +62,7 @@ gpg-signing-worktree
 
 # Secrets — provider seam. Never commit the real key; .env.example is the template.
 .env
+
+# Docs site (VitePress)
+node_modules/
+docs/.vitepress/cache
