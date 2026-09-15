@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest -m e2e",
+  "ran_at": 1789514610,
+  "exit_code": 0,
+  "commit": "15d0a6367d7cf22a94a5f2ed51291bb88b69999d",
+  "branch": "fix/gpg-staged-keyring-copy"
+}
