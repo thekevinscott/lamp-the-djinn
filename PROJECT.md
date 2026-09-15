@@ -98,7 +98,12 @@ uv run lamp-the-djinn --shell "ssh -T git@github.com"
 
 | File | Purpose |
 |------|---------|
-| `src/lamp_the_djinn/cli.py` | CLI entry points |
+| `src/lamp_the_djinn/cli.py` | CLI entry points; the composition root that wires the modules below |
+| `src/lamp_the_djinn/parser.py` | ltd's own option surface |
+| `src/lamp_the_djinn/env_defaults.py` | LTD_* env fills unset options |
+| `src/lamp_the_djinn/config.py` | Turns the devcontainer template into this run's cage config |
+| `src/lamp_the_djinn/devcontainer_run.py` | Cage up / exec / teardown lifecycle |
+| `src/lamp_the_djinn/runtime.py` | OCI isolation runtime resolution |
 | `pyproject.toml` | Package config |
 | `.devcontainer/devcontainer.json` | Devcontainer config |
 | `.devcontainer/Dockerfile` | Container image |

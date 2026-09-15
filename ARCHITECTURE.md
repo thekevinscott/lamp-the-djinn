@@ -18,7 +18,7 @@ changes.
 
 A concrete runtime that Docker does not report falls back to `runc` with a
 warning, so a run never hard-fails on a missing runtime. See
-`detect_runtime` in `src/lamp_the_djinn/cli.py`.
+`detect_runtime` in `src/lamp_the_djinn/runtime.py`.
 
 ## Provider seam
 

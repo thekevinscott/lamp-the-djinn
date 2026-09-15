@@ -10,7 +10,7 @@ from unittest import mock
 
 import pytest
 
-from lamp_the_djinn.cli import get_container_info
+from lamp_the_djinn.container_info import get_container_info
 
 pytestmark = pytest.mark.integration
 
