@@ -45,8 +45,14 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # Install uv/uvx from official image (https://docs.astral.sh/uv/guides/integration/docker/)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
-# Enable pnpm via corepack (https://pnpm.io/docker)
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install pnpm globally, pinned. NOT via corepack: pnpm 12 renamed its bin to
+# bin/pnpm.mjs while corepack 0.34.2 still looks for bin/pnpm.cjs, so
+# `corepack prepare pnpm@latest` dies with MODULE_NOT_FOUND. A global install
+# also needs no runtime download -- a corepack shim fetching pnpm on first use
+# would fail in the cage, where egress is default-deny.
+ARG PNPM_VERSION=12.4.2
+RUN --mount=type=cache,target=/root/.npm,sharing=locked \
+  npm install -g pnpm@${PNPM_VERSION}
 
 # Copy firewall scripts, utilities, GPG setup, and domain whitelist
 COPY --chmod=755 init-firewall.sh add-domain-to-firewall.sh safe-rm setup-gpg.sh /usr/local/bin/
