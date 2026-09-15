@@ -1,9 +1,9 @@
 name: Testing Conventions
 
 # Deterministic enforcement of the testing discipline documented in AGENTS.md:
-# colocated unit tests, isolated unit tests, integration tests that never mock
-# first-party code, a unit-coverage floor, no test files in the built
-# distribution, and a fresh e2e attestation. This workflow IS the gate; AGENTS.md
+# colocated unit tests, isolated unit tests, one non-trivial function per
+# module, integration tests that never mock first-party code, a unit-coverage
+# floor, no test files in the built distribution, and a fresh e2e attestation. This workflow IS the gate; AGENTS.md
 # is the why, and testing-conventions.toml holds the floors and exemptions.
 #
 # It runs the published `testing-conventions` binary via npx (a prebuilt npm
@@ -85,6 +85,9 @@ jobs:
 
       - name: Unit-test isolation (src)
         run: npx -y "testing-conventions${TC_VERSION:+@$TC_VERSION}" unit lint --language python --config testing-conventions.toml src
+
+      - name: One function per module (src)
+        run: npx -y "testing-conventions${TC_VERSION:+@$TC_VERSION}" unit one-function-per-file --language python --config testing-conventions.toml src
 
       - name: Integration-test mocking hygiene (tests/integration)
         run: npx -y "testing-conventions${TC_VERSION:+@$TC_VERSION}" integration lint --language python --config testing-conventions.toml tests/integration

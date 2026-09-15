@@ -77,10 +77,17 @@ change, not speculative future-proofing.
 
 `testing-conventions` runs these rules deterministically in CI, via
 `.github/workflows/conventions.yml`: colocated unit tests, unit-test isolation,
-integration tests that don't mock first-party code, the unit-coverage floor,
-packaging hygiene (no test files in the built wheel/sdist), and e2e attestation
-freshness. It is the gate; this document is the why. See
+one non-trivial function per module (`unit one-function-per-file`, scanning
+`src`), integration tests that don't mock first-party code, the unit-coverage
+floor, packaging hygiene (no test files in the built wheel/sdist), and e2e
+attestation freshness. It is the gate; this document is the why. See
 `testing-conventions.toml` for the project's floors and exemptions.
+
+`one-function-per-file` is why `src/lamp_the_djinn/` is many small modules
+rather than one `cli.py`: a source file may hold at most one module-scope
+function whose body runs longer than a line. Trivial one-liners still share a
+file. A new non-trivial function means a new module — and, via
+`colocated-test`, a new sibling `*_test.py`.
 
 The binary is **not** a project dependency — it's a standalone CLI. CI runs it
 via `npx -y testing-conventions`; locally, use `uvx testing-conventions`. Each
