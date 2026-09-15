@@ -27,6 +27,7 @@ ltd                          # bare: runs `claude --dangerously-skip-permissions
 ltd claude -p "fix the bug"  # the -p goes to claude, not ltd
 ltd npx @anthropic/claude    # run an agent straight from npm
 ltd --model glm-5.2 aider    # route a different harness through the proxy
+ltd pi -c                    # harness flags pass through: pi's -c resumes its last session
 ltd --safe-mode              # bare claude with permission prompts on
 ```
 
