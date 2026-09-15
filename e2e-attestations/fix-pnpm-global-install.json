@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest -m e2e tests/e2e/coding_agent_test.py tests/e2e/mount_permissions_test.py tests/e2e/agent_matrix_test.py",
+  "ran_at": 1789504935,
+  "exit_code": 0,
+  "commit": "72ea9afdf95cac2195fe2779962e863b31d53243",
+  "branch": "fix/pnpm-global-install"
+}
