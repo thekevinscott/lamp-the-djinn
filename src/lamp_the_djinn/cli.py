@@ -20,6 +20,7 @@ from .devcontainer_files import extract_devcontainer_files
 from .devcontainer_run import run_devcontainer
 from .docker_check import check_docker_accessible
 from .env_defaults import apply_env_defaults
+from .gnupg_config import stage_gnupg_config
 from .home_mounts import home_mount_parent_dirs
 from .image import IMAGE_NAME, pull_docker_image_if_needed
 from .manifest import record_manifest
@@ -139,6 +140,14 @@ def main() -> None:
         claude_stage_dir = cache_dir / "claude-config-stage"
         stage_claude_config(Path.home(), claude_stage_dir)
 
+    # Signing: stage a disposable copy of the host keyring and mount THAT. The
+    # host ~/.gnupg is never mounted (see stage_gnupg_config); the copy holds
+    # private key material, so it is deleted when the cage comes down.
+    gnupg_stage_dir: Path | None = None
+    if args.gpg_key_id:
+        gnupg_stage_dir = cache_dir / "gnupg-stage"
+        stage_gnupg_config(Path.home(), gnupg_stage_dir)
+
     # Load and modify config
     config = json.loads(source_config.read_text())
     config = modify_config(
@@ -153,6 +162,7 @@ def main() -> None:
         runtime=runtime,
         trusted=args.trusted,
         claude_stage_dir=claude_stage_dir,
+        gnupg_stage_dir=gnupg_stage_dir,
     )
 
     # Write modified config back to the temp devcontainer dir
@@ -174,6 +184,7 @@ def main() -> None:
         instance_id,
         mount_parent_dirs=mount_parent_dirs,
         debug=args.debug,
+        discard_dirs=[d for d in (gnupg_stage_dir,) if d is not None],
     )
 
 

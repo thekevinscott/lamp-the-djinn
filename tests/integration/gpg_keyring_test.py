@@ -19,7 +19,8 @@ from pathlib import Path
 
 import pytest
 
-from lamp_the_djinn.cli import modify_config, stage_gnupg_config
+from lamp_the_djinn.config import modify_config
+from lamp_the_djinn.gnupg_config import stage_gnupg_config
 
 pytestmark = pytest.mark.integration
 

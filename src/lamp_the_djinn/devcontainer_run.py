@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .command import resolve_command
 from .mount_ownership import fix_mount_dir_ownership
+from .staged_dirs import discard_staged_dirs
 from .teardown import teardown_cage
 
 
@@ -22,6 +23,7 @@ def run_devcontainer(
     instance_id: str | None = None,
     mount_parent_dirs: list[str] | None = None,
     debug: bool = False,
+    discard_dirs: list[Path] | None = None,
 ) -> None:
     """Run the devcontainer with the resolved command.
 
@@ -88,6 +90,7 @@ def run_devcontainer(
         if child is not None and child.poll() is None:
             child.terminate()
         teardown_cage(id_label)
+        discard_staged_dirs(discard_dirs or [])
         # We are on the signal path; skip the rest of the function and report the
         # signal the way a shell would (128 + N).
         os._exit(128 + signum)
@@ -136,6 +139,7 @@ def run_devcontainer(
         signal.signal(signal.SIGTERM, previous_sigterm)
         signal.signal(signal.SIGHUP, previous_sighup)
         teardown_cage(id_label)
+        discard_staged_dirs(discard_dirs or [])
 
     # A child killed by signal N reports -N; map it to the shell's 128+N.
     sys.exit(rc if rc >= 0 else 128 - rc)
