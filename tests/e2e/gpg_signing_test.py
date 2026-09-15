@@ -209,3 +209,7 @@ def describe_signing_commits_in_the_cage():
 
         after = sorted(p.name for p in gnupg.iterdir())
         assert after == before, f"the cage wrote into the host keyring: {set(after) - set(before)}"
+
+        # The copy holds private key material, so it must not outlive the cage.
+        leftovers = list((home / ".cache" / "lamp-the-djinn").glob("workspace-*/gnupg-stage"))
+        assert leftovers == [], f"staged keyring copies survived the run: {leftovers}"
