@@ -93,3 +93,28 @@ that changes nothing. `modify_config` sets `updateRemoteUserUID: false` in
 exactly that case and leaves it alone otherwise -- both ids must match, because
 a partial match would leave bind-mounted files wrong-grouped. Measured on a warm
 host: 2.4s -> 2.0s for `up`.
+
+## Admin surface
+
+`ltd admin` is the one subcommand that runs **on the host**, outside any cage.
+It is a host-side control surface, so it deliberately shares nothing with the
+harness path: no Docker probe, no devcontainer, no proxy.
+
+Two constraints shape it.
+
+**No runtime dependency.** ltd ships with an empty `dependencies` list, and
+`uvx lamp-the-djinn` cold start is a user-visible cost. The screen is drawn with
+stdlib ANSI (`termios`/`tty` for the key read), not `rich` or `textual`, so the
+wheel and the cold start are unchanged. When the admin surface grows past a
+static screen — live tables, panes, focus — that is the point to adopt a real
+toolkit and pay for it deliberately.
+
+**No collision with the passthrough.** Everything after ltd's options is
+`argparse.REMAINDER`, so a bare `admin` token is ambiguous with a cage program
+named `admin`. The reservation is narrow on purpose: `admin` is the subcommand
+only when it is the *entire* command. `ltd admin <anything>` is a passthrough,
+and `ltd --shell admin` reaches a bare cage `admin`.
+
+The screen is pure (`render_admin_screen`), unit-tested colocated; the terminal
+lifecycle is pinned by a real-PTY e2e (`tests/e2e/admin_tui_test.py`) driving
+the deployed console script through curtaincall.

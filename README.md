@@ -67,6 +67,28 @@ file can do so — pi, for instance, creates its session dir at
 pi's config at a `cage` provider whose `baseUrl` is
 `http://host.docker.internal:4000/v1` (the proxy as seen from inside the cage).
 
+## Admin TUI
+
+`ltd admin` opens a small full-screen admin view **on the host** — no cage, no
+Docker:
+
+```bash
+ltd admin        # host-side admin screen; press q (or Esc / Ctrl-C) to quit
+```
+
+Today it is a hello-world screen: a title, the running version, and a quit hint.
+It exists to pin the TUI plumbing (alternate screen, raw-mode key read, terminal
+restore) that the real admin surface — proxy status, running cages, allowlist
+management — will be built on.
+
+`admin` is reserved **only** as the entire command. `ltd admin` is the TUI;
+`ltd admin --status` or any `admin <args>` form still passes through to the cage
+untouched, as does `ltd --shell admin` if you really need to run a cage program
+literally named `admin` with no arguments.
+
+With stdout not attached to a terminal (`ltd admin | cat`), the screen is
+printed once as plain text and ltd exits, so it stays pipe-safe.
+
 ## Configuration
 
 For a dedicated GitHub identity (recommended for distinguishing AI commits from your own):
