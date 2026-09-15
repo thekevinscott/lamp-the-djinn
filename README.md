@@ -2,7 +2,7 @@
 
 A sandbox for running any coding agent with full autonomy, without risking your system.
 
-**Docs:** https://thekevinbot.github.io/lamp-the-djinn/ — [Read the blog post](https://thekevinscott.com/sandbox-for-claude-code/) for more context.
+**Docs:** https://thekevinscott.github.io/lamp-the-djinn/ — [Read the blog post](https://thekevinscott.com/sandbox-for-claude-code/) for more context.
 
 ## What It Solves
 
