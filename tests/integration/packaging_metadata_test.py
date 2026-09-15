@@ -26,3 +26,12 @@ def describe_pyproject_urls():
         expected = f"https://github.com/{GITHUB_SLUG}"
         assert urls["Repository"] == expected
         assert urls["Homepage"] == expected
+
+
+def describe_pyproject_authors():
+    def it_names_the_current_owner():
+        manifest = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
+        (author,) = manifest["project"]["authors"]
+
+        assert author["name"] == "Kevin Scott"
+        assert author["email"] == "thekevinscott@users.noreply.github.com"
