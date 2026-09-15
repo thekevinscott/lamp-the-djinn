@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest -m e2e tests/e2e/coding_agent_test.py tests/e2e/mount_permissions_test.py tests/e2e/agent_matrix_test.py",
+  "ran_at": 1789504966,
+  "exit_code": 0,
+  "commit": "ac59cddf848f240ac7ea5127a9bc3dc72276e43b",
+  "branch": "perf/preinstall-pi-in-cage-image"
+}

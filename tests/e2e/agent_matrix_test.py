@@ -26,6 +26,11 @@ installed `ltd` CONSOLE SCRIPT, never `uv run` against `src/`, so the test canno
 go green against the source while the shipped binary is broken. `_ltd_binary()`
 resolves the real artifact (excluding the venv shadow) and prints which one ran.
 
+pi and claude are both PREINSTALLED in the cage image, so the cells invoke them
+by name rather than via `npx -y <pkg>` (which re-downloads the harness on every
+untrusted run). `describe_what_the_cage_image_ships` is what pins that property;
+these cells depend on it.
+
 OWN THE PRECONDITION -- pi does not read OPENAI_BASE_URL; left alone it hits
 api.openai.com and dies behind the cage firewall. So each pi cell CONSTRUCTS the
 exact provider config pi needs (`<dir>/models.json` -> a custom `ltd` provider
@@ -76,8 +81,6 @@ import pytest
 from curtaincall.expect import expect
 
 pytestmark = [pytest.mark.e2e, pytest.mark.claude]
-
-PI_PKG = "@earendil-works/pi-coding-agent"
 
 SENTINEL = os.environ.get("LTD_E2E_SENTINEL", "BANANA")
 PI_MODEL = os.environ.get("LTD_E2E_PI_MODEL", "qwen")
@@ -150,18 +153,27 @@ def _docker_runtimes() -> set[str]:
         return set()
 
 
-def _require_infra() -> str:
-    """Skip unless Docker, a deployed ltd, and a reachable proxy are all present.
-    Returns the ltd binary path and prints which artifact will run."""
+def _require_cage() -> str:
+    """Skip unless Docker and a deployed ltd are present -- enough to run a cage.
+
+    Split out from _require_infra so a cell that only inspects the cage IMAGE
+    does not skip for an unrelated reason (an unreachable model proxy)."""
     if shutil.which("docker") is None:
         pytest.skip("docker not available")
     ltd = _ltd_binary()
     if ltd is None:
         pytest.skip("ltd/lamp-the-djinn console script not installed on PATH (set LTD_BIN)")
-    if not _proxy_reachable(PROXY_PROBE_URL):
-        pytest.skip(f"LiteLLM proxy not reachable at {PROXY_PROBE_URL} (set LTD_E2E_PROXY_PROBE_URL)")
     # A wrong-binary e2e is how the EROFS bug shipped green; always say which ran.
     print(f"\n[e2e] exercising deployed artifact: {ltd}")
+    return ltd
+
+
+def _require_infra() -> str:
+    """Skip unless Docker, a deployed ltd, and a reachable proxy are all present.
+    Returns the ltd binary path and prints which artifact will run."""
+    ltd = _require_cage()
+    if not _proxy_reachable(PROXY_PROBE_URL):
+        pytest.skip(f"LiteLLM proxy not reachable at {PROXY_PROBE_URL} (set LTD_E2E_PROXY_PROBE_URL)")
     return ltd
 
 
@@ -304,9 +316,7 @@ def describe_running_an_agent_non_interactively():
                 str(agent_dir),
                 "-e",
                 f"PI_CODING_AGENT_DIR={agent_dir}",
-                "npx",
-                "-y",
-                PI_PKG,
+                "pi",
                 "-p",
                 "--model",
                 f"ltd/{model}",
@@ -366,9 +376,7 @@ def describe_running_an_agent_interactively():
                     str(agent_dir),
                     "-e",
                     f"PI_CODING_AGENT_DIR={agent_dir}",
-                    "npx",
-                    "-y",
-                    PI_PKG,
+                    "pi",
                     "--model",
                     f"ltd/{model}",
                 ]
@@ -441,9 +449,7 @@ def describe_mounting_pi_config_from_the_host_home():
             # The cage user's HOME is /home/node, so a correctly home-mapped `-v`
             # lands cfg_root there; pi reads its config from that mapped path.
             cage_agent_dir = f"/home/node/{cfg_root.name}/agent"
-            pi_cmd = (
-                f'npx -y {PI_PKG} -p --model ltd/{model} "Reply with exactly one word and nothing else: {SENTINEL}"'
-            )
+            pi_cmd = f'pi -p --model ltd/{model} "Reply with exactly one word and nothing else: {SENTINEL}"'
             argv = [
                 ltd,
                 "--model",
@@ -564,3 +570,42 @@ def describe_tearing_down_the_cage():
                 proc.wait(timeout=30)
             for cid in cages() & mine:
                 subprocess.run(["docker", "rm", "-f", cid], capture_output=True, text=True)
+
+
+def describe_what_the_cage_image_ships():
+    """Harnesses the image PREINSTALLS, so a run never pays to fetch them.
+
+    Every `npx -y <harness>` inside the cage is a fresh npm download: the
+    harness-package cache is mounted only for `--trusted` runs (see
+    modify_config), so the default untrusted run has no warm cache to hit. For a
+    harness used on every single run that download is pure, repeated startup
+    latency -- measured at ~3s for pi. The fix is the one already applied to
+    Claude Code and the Playwright CLI: install it globally in the image.
+    """
+
+    def it_ships_pi_preinstalled(reap_cages):
+        """`pi` must resolve to a global install inside the cage.
+
+        `pi --version` alone is NOT enough: it passes just as well on a cage
+        that downloaded pi on demand, which is the cost this pins away. The
+        resolved PATH entry is what separates shipped-in-the-image from
+        fetched-at-runtime, so assert on that -- an npx cache path is a failure.
+        """
+        ltd = _require_cage()
+        # `command` is a shell builtin, so this needs --shell (`bash -c`) rather
+        # than a bare argv command, which devcontainer exec would try to execvp.
+        result = subprocess.run(
+            [ltd, "--runtime", "runc", "--shell", "command -v pi"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            env={**os.environ},
+            timeout=600,
+        )
+        assert result.returncode == 0, (
+            f"`pi` is not on PATH in the cage -- it is not preinstalled\n{result.stdout}\n{result.stderr}"
+        )
+        resolved = result.stdout.strip().splitlines()[-1].strip()
+        assert "_npx" not in resolved, f"pi resolved to an npx cache, not the image: {resolved}"
+        assert resolved.startswith("/usr/"), f"pi did not resolve to a global install: {resolved}"
+        print(f"[cage-image] pi preinstalled at {resolved}")
