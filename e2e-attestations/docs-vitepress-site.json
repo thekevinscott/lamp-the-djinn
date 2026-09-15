@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest -m e2e tests/e2e/coding_agent_test.py tests/e2e/mount_permissions_test.py tests/e2e/agent_matrix_test.py",
+  "ran_at": 1789503033,
+  "exit_code": 0,
+  "commit": "1e2d3cdb98c92b10e88f64b574478859b1c86d6d",
+  "branch": "docs/vitepress-site"
+}
