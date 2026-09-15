@@ -67,3 +67,19 @@ The security model rests on four properties, not on any single fence:
    proxy token.
 3. **Ephemeral** — the cage is disposable; `git reset --hard` is the undo.
 4. **Diff review** — the human reviews the produced diff before it leaves.
+
+## Startup cost
+
+The cage is created and torn down per run (`teardown_cage`), so everything
+`devcontainer up` does is paid on every invocation -- there is no warm container
+to amortize it against. That makes no-op work in that path worth removing.
+
+`updateRemoteUserUID` is on by default for a non-root `remoteUser`, and the
+devcontainer CLI honors it by building an extra derived image (tagged
+`...-uid`) that `usermod`s the cage user to the host's ids. The cage's `node` is
+uid/gid 1000 by construction (the Dockerfile renames whatever user the base
+image left at 1000), so on a host that is also 1000 the build applies a rename
+that changes nothing. `modify_config` sets `updateRemoteUserUID: false` in
+exactly that case and leaves it alone otherwise -- both ids must match, because
+a partial match would leave bind-mounted files wrong-grouped. Measured on a warm
+host: 2.4s -> 2.0s for `up`.
