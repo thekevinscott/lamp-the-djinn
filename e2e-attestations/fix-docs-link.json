@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest -m e2e tests/e2e/coding_agent_test.py tests/e2e/mount_permissions_test.py tests/e2e/agent_matrix_test.py",
+  "ran_at": 1789505313,
+  "exit_code": 0,
+  "commit": "5638bbebca8c7fd83800374d8bbc0c1a85e914a4",
+  "branch": "fix/docs-link"
+}
