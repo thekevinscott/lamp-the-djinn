@@ -14,4 +14,11 @@ services:
       - ./litellm/config.yaml:/app/config.yaml:ro
     env_file:
       - .env
+    # Edit config.yaml without a manual restart: with `docker compose up -d --watch`,
+    # compose syncs the file and restarts litellm, which re-reads config at startup.
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./litellm/config.yaml
+          target: /app/config.yaml
     restart: unless-stopped
