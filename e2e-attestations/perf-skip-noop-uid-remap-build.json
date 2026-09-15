@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest -m e2e tests/e2e/coding_agent_test.py tests/e2e/mount_permissions_test.py tests/e2e/agent_matrix_test.py",
+  "ran_at": 1789504959,
+  "exit_code": 0,
+  "commit": "2af14eb8b75b249c96e071af6fa57cff5968d616",
+  "branch": "perf/skip-noop-uid-remap-build"
+}
