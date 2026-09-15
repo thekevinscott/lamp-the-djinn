@@ -22,8 +22,8 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/thekevinbot/lamp-the-djinn"
-Repository = "https://github.com/thekevinbot/lamp-the-djinn"
+Homepage = "https://github.com/thekevinscott/lamp-the-djinn"
+Repository = "https://github.com/thekevinscott/lamp-the-djinn"
 
 [project.scripts]
 lamp-the-djinn = "lamp_the_djinn.cli:main"
