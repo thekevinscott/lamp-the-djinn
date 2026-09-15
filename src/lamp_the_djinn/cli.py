@@ -12,6 +12,7 @@ import sys
 import uuid
 from pathlib import Path
 
+from .admin import is_admin_command, run_admin
 from .claude_config import stage_claude_config
 from .config import modify_config
 from .container_banner import print_container_info
@@ -40,6 +41,11 @@ def main() -> None:
     """
     parser = create_parser()
     args = parser.parse_args()
+
+    # `ltd admin` is host-side: no cage, no Docker probe. Dispatch before any of
+    # the cage setup below runs.
+    if is_admin_command(args.command):
+        sys.exit(run_admin())
 
     # Detect whether the user explicitly engaged the proxy feature (via the
     # --model/--proxy-url flags or the LTD_MODEL/LTD_PROXY_URL env) BEFORE
