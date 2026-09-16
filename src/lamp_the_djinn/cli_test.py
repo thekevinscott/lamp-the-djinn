@@ -1,783 +1,141 @@
 """
-Unit tests for cli.py: command pass-through, provider env injection, the
-cache-freshness manifest, trust-tiered ~/.claude config exposure, the per-cage
-memory default, and the machine-local firewall allowlist supplement mount.
+Unit tests for main(), the composition root. Every collaborator is mocked, so
+what is pinned here is the wiring main owns: proxy engagement, the SSH-key
+preflight, and the build fallback when the published image cannot be pulled.
+The behavior of each collaborator is pinned in its own colocated suite.
 
-These cover the harness-generalization refinement: ltd no longer maintains a
-named-harness registry. Instead the command is whatever the user types after
-ltd's own options (`ltd [ltd-opts] <command...>`), both provider env families
-are injected when the proxy is engaged, and package-runner invocations are
-recorded to a manifest for the nightly cache warm. The cage also no longer
-bind-mounts the host ~/.claude read-write by default: strict mode (default)
-mounts a disposable, allowlisted COPY; trusted mode (opt-in) restores the live
-read-write bind.
-
-This is the single colocated unit suite for cli.py (one source file -> one
-`_test.py`, per the colocated-test convention). Style is pytest-describe
-(describe_/it_ blocks) with unittest.mock + tmp_path rather than the pytest-mock
-`mocker` fixture, which is not in the dev dependency set.
+Style is pytest-describe (describe_/it_ blocks).
 """
 
-import argparse
 from pathlib import Path
 from unittest import mock
 
 import pytest
 
-from lamp_the_djinn.cli import (
-    apply_env_defaults,
-    create_parser,
-    home_mount_parent_dirs,
-    modify_config,
-    record_manifest,
-    resolve_command,
-    stage_claude_config,
-)
+from lamp_the_djinn.cli import main
 
 pytestmark = pytest.mark.unit
 
-
-def describe_command_parsing():
-    """REMAINDER splits ltd's own options from the in-cage command."""
-
-    def it_splits_ltd_opts_from_command():
-        """ltd options before the command are parsed; the rest is the command."""
-        parser = create_parser()
-        args = parser.parse_args(["--model", "glm-5.2", "claude", "-p", "hi"])
-        assert args.model == "glm-5.2"
-        # The command's own -p is NOT stolen by ltd's -p/--port.
-        assert args.command == ["claude", "-p", "hi"]
-        assert args.port is None
-
-    def it_treats_bare_runner_as_the_command():
-        """A command with no leading ltd options is captured verbatim."""
-        parser = create_parser()
-        args = parser.parse_args(["npx", "@anthropic/claude"])
-        assert args.command == ["npx", "@anthropic/claude"]
-
-    def it_passes_harness_resume_flags_through():
-        """pi's -c/--continue survives REMAINDER untouched (ltd pi -c)."""
-        parser = create_parser()
-        args = parser.parse_args(["pi", "--continue"])
-        assert args.command == ["pi", "--continue"]
-
-    def it_does_not_steal_command_flags_matching_ltd_flags():
-        """ltd's -p stops at the first command token; later -p belongs to the command."""
-        parser = create_parser()
-        args = parser.parse_args(["-p", "8080", "claude", "-p", "prompt"])
-        # ltd's own -p captured the port; the command keeps its own -p.
-        assert args.port == ["8080"]
-        assert args.command == ["claude", "-p", "prompt"]
-
-    def it_leaves_command_empty_when_only_ltd_opts_given():
-        """With no command tokens, command is empty (default applies later)."""
-        parser = create_parser()
-        args = parser.parse_args(["--safe-mode"])
-        assert args.command == []
-        assert args.safe_mode is True
-
-    def it_has_no_harness_flag():
-        """The named --harness flag was removed."""
-        parser = create_parser()
-        # Unknown option -> parser errors (SystemExit), proving it is gone.
-        try:
-            parser.parse_args(["--harness", "codex"])
-        except SystemExit:
-            pass
-        else:  # pragma: no cover - guard
-            raise AssertionError("--harness should no longer be a recognized flag")
+# The exact exception main catches around the image pull, reached through the unit
+# under test so this file imports no effectful collaborator of its own.
+_CalledProcessError = main.__globals__["subprocess"].CalledProcessError
 
 
-def describe_resolve_command():
-    """Precedence: explicit command > --shell > default claude."""
+def _wire(tmp_path: Path, argv: list[str]):
+    """Patch every collaborator main calls, and run it under `argv`.
 
-    def it_prefers_an_explicit_command():
-        assert resolve_command(["claude", "-p", "hi"], "echo no", False) == ["claude", "-p", "hi"]
-
-    def it_falls_back_to_default_claude():
-        """Bare ltd (no command, no shell) defaults to skip-permissions claude."""
-        assert resolve_command([], None, False) == ["claude", "--dangerously-skip-permissions"]
-
-    def it_uses_plain_claude_in_safe_mode():
-        """--safe-mode drops the skip-permissions flag."""
-        assert resolve_command([], None, True) == ["claude"]
-
-    def it_maps_shell_to_bash_c():
-        """--shell CMD is equivalent to bash -c CMD when no command is given."""
-        assert resolve_command([], "cat /workspace/x", False) == ["bash", "-c", "cat /workspace/x"]
-
-    def it_splits_a_single_quoted_whitespace_command():
-        """A command quoted as ONE token (`ltd '... npx -y pkg ...'`) arrives as a
-        single argv element with spaces; `devcontainer exec` would treat the whole
-        string as one executable name and fail, so we shlex-split it back to argv."""
-        assert resolve_command(["npx -y @earendil-works/pi-coding-agent"], None, False) == [
-            "npx",
-            "-y",
-            "@earendil-works/pi-coding-agent",
-        ]
-
-    def it_leaves_a_single_bare_token_untouched():
-        """A lone token with no whitespace (`ltd claude`) is already valid argv --
-        do not shlex-split it (that would just rebuild the same single element)."""
-        assert resolve_command(["claude"], None, False) == ["claude"]
-
-
-def _bare_args(**overrides) -> argparse.Namespace:
-    """A minimal args namespace for modify_config (strict, no extra features).
-
-    `trusted`/`memory` carry their CLI defaults so a call with no overrides is
-    the bare untrusted invocation; pass overrides (e.g. `trusted=True`) per test.
+    Returns the mock registry so a cell can assert on the wiring. The devcontainer
+    source config is a real file under tmp_path because main reads and rewrites it.
     """
-    base = dict(
-        build=False,
-        ssh_key_file=None,
-        gpg_key_id=None,
-        git_user_name=None,
-        git_user_email=None,
-        gh_token=None,
-        port=None,
-        volume=None,
-        env=None,
-        allow_domains_file=None,
-        trusted=False,
-        memory=None,
-    )
-    base.update(overrides)
-    return argparse.Namespace(**base)
-
-
-def _mounts(config: dict) -> list[str]:
-    return config.get("mounts", [])
-
-
-def _run_args(config: dict) -> list[str]:
-    return config.get("runArgs", [])
-
-
-def describe_dual_env_injection():
-    """modify_config injects both env families iff the proxy is engaged."""
-
-    def it_injects_both_families_when_proxy_engaged(tmp_path: Path):
-        config = modify_config(
-            {"mounts": [], "runArgs": []},
-            _bare_args(),
-            tmp_path,
-            proxy_url="http://host.docker.internal:4000/v1",
-            model="glm-5.2",
-            proxy_api_key="k",
-        )
-        run_args = _run_args(config)
-        joined = " ".join(run_args)
-        assert "OPENAI_BASE_URL=http://host.docker.internal:4000/v1" in run_args
-        assert "OPENAI_MODEL=glm-5.2" in run_args
-        assert "ANTHROPIC_BASE_URL=http://host.docker.internal:4000/v1" in run_args
-        assert "ANTHROPIC_MODEL=glm-5.2" in run_args
-        # host.docker.internal mapping is added so the cage can reach the proxy.
-        assert "--add-host=host.docker.internal:host-gateway" in run_args
-        assert "host" in joined
-
-    def it_injects_no_provider_env_when_no_proxy(tmp_path: Path):
-        config = modify_config(
-            {"mounts": [], "runArgs": []},
-            _bare_args(),
-            tmp_path,
-            proxy_url=None,
-        )
-        run_args = _run_args(config)
-        assert not any(a.startswith("OPENAI_") or "OPENAI_" in a for a in run_args)
-        assert not any(a.startswith("ANTHROPIC_") or "ANTHROPIC_" in a for a in run_args)
-
-    def it_always_adds_host_gateway_even_without_proxy(tmp_path: Path):
-        """The host.docker.internal mapping is unconditional: a harness config (e.g.
-        pi's models.json) may point at it even when ltd injects no provider env."""
-        config = modify_config(
-            {"mounts": [], "runArgs": []},
-            _bare_args(),
-            tmp_path,
-            proxy_url=None,
-        )
-        assert "--add-host=host.docker.internal:host-gateway" in _run_args(config)
-
-    def it_adds_writable_auth_mount_always(tmp_path: Path):
-        """The scoped, writable credential mount is present regardless of proxy."""
-        config = modify_config(
-            {"mounts": [], "runArgs": []},
-            _bare_args(),
-            tmp_path,
-            proxy_url=None,
-        )
-        mounts = " ".join(config["mounts"])
-        assert "/home/node/.config/ltd-auth" in mounts
-        # NOT readonly -- this mount must be writable to persist credentials.
-        auth_mount = next(m for m in config["mounts"] if "ltd-auth" in m)
-        assert "readonly" not in auth_mount
-
-
-def _warm_harness_cache(home: Path) -> None:
-    """Materialize a realistic, non-empty npm cache so the dir reads as 'warmed'.
-
-    The EROFS bug was state-dependent: the buggy `elif cache_warmed:` branch only
-    read-only-mounted the cache when the host harness-cache was non-empty. Warming
-    a monkeypatched HOME makes the untrusted assertions reproduce that precondition
-    deterministically, instead of depending on whatever the developer's real
-    ~/.cache happens to contain.
-    """
-    cacache = home / ".cache" / "lamp-the-djinn" / "harness-cache" / "npm" / "_cacache"
-    for sub in ("tmp", "content-v2", "index-v5"):
-        (cacache / sub).mkdir(parents=True, exist_ok=True)
-
-
-def describe_harness_cache():
-    """The harness package cache mount is trust-gated, not proxy-gated."""
-
-    def it_mounts_writable_cache_and_env_when_trusted(tmp_path: Path):
-        """trusted -> writable cache bind + cache env, so npx/uvx reuse the cache."""
-        config = modify_config(
-            {"mounts": [], "runArgs": []},
-            _bare_args(),
-            tmp_path,
-            trusted=True,
-        )
-        run_args = _run_args(config)
-        assert "UV_CACHE_DIR=/home/node/.cache/ltd-harness/uv" in run_args
-        assert "npm_config_cache=/home/node/.cache/ltd-harness/npm" in run_args
-        # The harness-cache mount is present and writable (NOT readonly).
-        cache_mount = next(m for m in config["mounts"] if "ltd-harness" in m)
-        assert "harness-cache" in cache_mount
-        assert "readonly" not in cache_mount
-
-    def it_does_not_mount_cache_or_set_env_when_untrusted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        """Regression for the EROFS crash on bare `ltd npx` (no --trusted).
-
-        Untrusted runs must NOT mount the harness cache AND must NOT point
-        npm/uv at it. If npm_config_cache/UV_CACHE_DIR point at a read-only
-        mount, npm writes _cacache/tmp while fetching and dies with EROFS.
-        The cage must fall back to its own writable in-container cache.
-
-        The cache is WARMED under a monkeypatched HOME so the assertion holds in
-        the exact state that triggered the bug -- not just when the developer's
-        ambient ~/.cache happens to be empty.
-        """
-        home = tmp_path / "home"
-        home.mkdir()
-        _warm_harness_cache(home)
-        monkeypatch.setenv("HOME", str(home))
-
-        config = modify_config(
-            {"mounts": [], "runArgs": []},
-            _bare_args(),
-            tmp_path,
-            trusted=False,
-        )
-        run_args = _run_args(config)
-        # No cache env pointing at the harness mount.
-        assert not any("ltd-harness" in a for a in run_args), (
-            f"untrusted run must not set a harness cache env: {run_args}"
-        )
-        assert not any(a.startswith("npm_config_cache=") for a in run_args)
-        assert not any(a.startswith("UV_CACHE_DIR=") for a in run_args)
-        # No harness-cache bind mount at all.
-        assert not any("ltd-harness" in m for m in config.get("mounts", [])), (
-            f"untrusted run must not mount the harness cache: {config.get('mounts')}"
-        )
-
-
-def describe_path_identity_mounts():
-    """Host dirs mount at their own paths inside the cage (path identity)."""
-
-    def it_mounts_the_project_at_its_own_path(tmp_path: Path):
-        proj = tmp_path / "proj"
-        proj.mkdir()
-        config = modify_config(
-            {"mounts": [], "runArgs": []},
-            _bare_args(),
-            tmp_path,
-            project_dir=proj,
-        )
-        # target == source == the real host path, not /workspace.
-        assert config["workspaceMount"] == (f"source={proj},target={proj},type=bind,consistency=delegated")
-        assert config["workspaceFolder"] == str(proj)
-        assert "/workspace" not in config["workspaceMount"]
-
-    def it_identity_mounts_a_bare_volume_path(tmp_path: Path):
-        d = tmp_path / "bertha" / "app"
-        d.mkdir(parents=True)
-        args = _bare_args()
-        args.volume = [str(d)]
-        config = modify_config({"mounts": [], "runArgs": []}, args, tmp_path)
-        resolved = str(Path(str(d)).resolve())
-        assert f"{resolved}:{resolved}" in config["runArgs"]
-
-    def it_remaps_a_home_relative_volume_to_the_cage_home(tmp_path: Path, monkeypatch):
-        """A `-v` path UNDER the host HOME maps to the SAME relative spot under the
-        cage user's HOME (`~/.pi` -> `/home/node/.pi`). The cage runs as `node`, so
-        a path-identity mount of a `$HOME` path would land where the harness (pi)
-        never looks. Monkeypatch HOME so the test owns the precondition."""
-        home = tmp_path / "home" / "duncan"
-        home.mkdir(parents=True)
-        monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
-        args = _bare_args()
-        args.volume = [str(home / ".pi")]
-        config = modify_config({"mounts": [], "runArgs": []}, args, tmp_path)
-        src = str((home / ".pi").resolve())
-        assert f"{src}:/home/node/.pi" in config["runArgs"]
-
-    def it_preserves_an_explicit_host_colon_container_volume(tmp_path: Path):
-        args = _bare_args()
-        args.volume = ["/h/data:/container/data"]
-        config = modify_config({"mounts": [], "runArgs": []}, args, tmp_path)
-        assert "/h/data:/container/data" in config["runArgs"]
-
-    def it_mounts_multiple_volumes(tmp_path: Path):
-        a = tmp_path / "a"
-        b = tmp_path / "b"
-        a.mkdir()
-        b.mkdir()
-        args = _bare_args()
-        args.volume = [str(a), str(b)]
-        config = modify_config({"mounts": [], "runArgs": []}, args, tmp_path)
-        for d in (a, b):
-            r = str(Path(str(d)).resolve())
-            assert f"{r}:{r}" in config["runArgs"]
-
-
-def describe_home_mount_parent_dirs():
-    """Which cage-side dirs ltd must re-own after a home-nested `-v` mount.
-
-    Docker creates the absent parents of a home-nested mount owned by ROOT, so
-    the cage user can't write siblings (pi's `mkdir ~/.pi/agent/sessions/...`
-    fails with EACCES). This is the decision -- which dirs -- that ltd hands to
-    `docker exec --user root chown` once the cage is up. The e2e suite pins the
-    real EACCES; here we pin the dir math without Docker."""
-
-    def it_lists_the_intermediate_parents_of_a_home_nested_mount():
-        home = Path("/home/duncan")
-        # `ltd -v ~/.pi/agent/models.json ...` -> these two dirs are made by Docker.
-        dirs = home_mount_parent_dirs([str(home / ".pi" / "agent" / "models.json")], home)
-        assert dirs == ["/home/node/.pi", "/home/node/.pi/agent"]
-
-    def it_returns_nothing_for_a_top_level_home_mount():
-        # `~/.pi` maps to /home/node/.pi -- its only parent IS the cage home,
-        # which already exists owned by the cage user. Nothing to re-own.
-        home = Path("/home/duncan")
-        assert home_mount_parent_dirs([str(home / ".pi")], home) == []
-
-    def it_ignores_a_path_outside_the_host_home():
-        # Path-identity mounts (outside home) land on dirs the host already owns.
-        assert home_mount_parent_dirs(["/mnt/data/sub/file"], Path("/home/duncan")) == []
-
-    def it_ignores_an_explicit_host_colon_container_mount():
-        # The user owns an explicit layout; ltd does not second-guess it.
-        home = Path("/home/duncan")
-        assert home_mount_parent_dirs([f"{home}/.pi/agent/models.json:/x/y/z.json"], home) == []
-
-    def it_dedupes_shared_parents_across_multiple_file_mounts():
-        home = Path("/home/duncan")
-        dirs = home_mount_parent_dirs(
-            [str(home / ".pi" / "agent" / "models.json"), str(home / ".pi" / "agent" / "settings.json")],
-            home,
-        )
-        assert dirs == ["/home/node/.pi", "/home/node/.pi/agent"]
-
-
-def describe_record_manifest():
-    """Conservative package-spec extraction from package-runner commands."""
-
-    def it_records_npx_spec(tmp_path: Path):
-        with mock.patch("pathlib.Path.home", return_value=tmp_path):
-            record_manifest(["npx", "@anthropic/claude"])
-        assert "@anthropic/claude" in self_check(tmp_path)
-
-    def it_records_uvx_spec(tmp_path: Path):
-        with mock.patch("pathlib.Path.home", return_value=tmp_path):
-            record_manifest(["uvx", "aider"])
-        assert "aider" in self_check(tmp_path)
-
-    def it_skips_flags_to_find_the_package(tmp_path: Path):
-        with mock.patch("pathlib.Path.home", return_value=tmp_path):
-            record_manifest(["npx", "-y", "@openai/codex"])
-        assert "@openai/codex" in self_check(tmp_path)
-
-    def it_records_npm_install_and_uv_tool(tmp_path: Path):
-        with mock.patch("pathlib.Path.home", return_value=tmp_path):
-            record_manifest(["npm", "install", "prettier"])
-            record_manifest(["uv", "tool", "install", "black"])
-        lines = self_check(tmp_path)
-        assert "prettier" in lines
-        assert "black" in lines
-
-    def it_ignores_non_runner_commands(tmp_path: Path):
-        with mock.patch("pathlib.Path.home", return_value=tmp_path):
-            record_manifest(["claude", "-p", "hi"])
-            record_manifest([])
-        assert self_check(tmp_path) == []
-
-    def it_dedupes_repeated_specs(tmp_path: Path):
-        with mock.patch("pathlib.Path.home", return_value=tmp_path):
-            record_manifest(["uvx", "aider"])
-            record_manifest(["uvx", "aider"])
-        assert self_check(tmp_path).count("aider") == 1
-
-
-def self_check(home: Path) -> list[str]:
-    """Read manifest lines under a mocked HOME (helper for record_manifest tests)."""
-    manifest = home / ".cache" / "lamp-the-djinn" / "harness-manifest.txt"
-    if not manifest.exists():
-        return []
-    return manifest.read_text().splitlines()
-
-
-def _make_claude_home(home: Path) -> Path:
-    """Populate a fake ~/.claude with allowlisted config + planted secrets."""
-    claude = home / ".claude"
-    claude.mkdir(parents=True, exist_ok=True)
-    (claude / "settings.json").write_text('{"theme": "dark"}')
-    (claude / "CLAUDE.md").write_text("# project memory")
-    (claude / "commands").mkdir()
-    (claude / "commands" / "foo.md").write_text("do foo")
-    (claude / "agents").mkdir()
-    (claude / "skills").mkdir()
-    # Secrets that must NEVER be copied.
-    (claude / ".credentials.json").write_text('{"oauth": "SECRET"}')
-    (claude / "auth-token.json").write_text("TOKEN")
-    return claude
-
-
-def describe_stage_claude_config():
-    """Allowlist copy: config in, credentials never."""
-
-    def it_copies_allowlisted_config_only(tmp_path: Path):
-        home = tmp_path / "home"
-        _make_claude_home(home)
-        dest = tmp_path / "stage"
-
-        stage_claude_config(home, dest)
-
-        assert (dest / "settings.json").read_text() == '{"theme": "dark"}'
-        assert (dest / "CLAUDE.md").read_text() == "# project memory"
-        assert (dest / "commands" / "foo.md").read_text() == "do foo"
-
-    def it_never_copies_credentials_or_tokens(tmp_path: Path):
-        home = tmp_path / "home"
-        _make_claude_home(home)
-        dest = tmp_path / "stage"
-
-        stage_claude_config(home, dest)
-
-        # Default-deny: anything outside the allowlist is absent, in particular
-        # credential/token-bearing files.
-        assert not (dest / ".credentials.json").exists()
-        assert not (dest / "auth-token.json").exists()
-        copied = {p.name for p in dest.iterdir()}
-        assert not any("credential" in n or "token" in n or "auth" in n for n in copied)
-
-    def it_is_a_noop_for_missing_source_dir(tmp_path: Path):
-        """No ~/.claude on the host -> dest is created but empty (no error)."""
-        home = tmp_path / "empty-home"
-        dest = tmp_path / "stage"
-
-        stage_claude_config(home, dest)
-
-        assert dest.exists()
-        assert list(dest.iterdir()) == []
-
-    def it_copies_only_existing_allowlist_entries(tmp_path: Path):
-        """Allowlist entries absent on the host are simply skipped."""
-        home = tmp_path / "home"
-        claude = home / ".claude"
-        claude.mkdir(parents=True)
-        (claude / "settings.json").write_text("{}")
-        dest = tmp_path / "stage"
-
-        stage_claude_config(home, dest)
-
-        assert (dest / "settings.json").exists()
-        assert not (dest / "CLAUDE.md").exists()
-        assert not (dest / "commands").exists()
-
-    def it_skips_dangling_symlinks_in_copied_dirs(tmp_path: Path):
-        """A stale symlink under skills/ (common in real ~/.claude) is skipped, not fatal."""
-        home = tmp_path / "home"
-        skills = home / ".claude" / "skills"
-        skills.mkdir(parents=True)
-        (skills / "good.md").write_text("ok")
-        (skills / "dangling").symlink_to(tmp_path / "nonexistent-target")
-        dest = tmp_path / "stage"
-
-        stage_claude_config(home, dest)  # must not raise
-
-        assert (dest / "skills" / "good.md").read_text() == "ok"
-        assert not (dest / "skills" / "dangling").exists()
-
-
-def describe_strict_claude_mount():
-    """Default (strict): mount the staged COPY, write back only transcript data."""
-
-    def it_mounts_the_stage_dir_not_the_host_claude(tmp_path: Path):
-        stage = tmp_path / "stage"
-        stage.mkdir()
-        # An embedded-style live rw host .claude bind that must be filtered out.
-        config = {
-            "mounts": ["source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind"],
-            "runArgs": [],
-        }
-        with mock.patch("pathlib.Path.home", return_value=tmp_path / "home"):
-            config = modify_config(config, _bare_args(), tmp_path, trusted=False, claude_stage_dir=stage)
-
-        mounts = _mounts(config)
-        # The .claude root mount source is the stage dir, NOT the host config.
-        assert f"source={stage},target=/home/node/.claude,type=bind" in mounts
-        # No LIVE rw bind of the host ~/.claude root.
-        assert "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind" not in mounts
-
-    def it_writes_back_transcript_data_when_host_paths_exist(tmp_path: Path):
-        home = tmp_path / "home"
-        (home / ".claude" / "projects").mkdir(parents=True)
-        (home / ".claude" / "history.jsonl").write_text("{}\n")
-        stage = tmp_path / "stage"
-        stage.mkdir()
-
-        with mock.patch("pathlib.Path.home", return_value=home):
-            config = modify_config(
-                {"mounts": [], "runArgs": []},
-                _bare_args(),
-                tmp_path,
-                trusted=False,
-                claude_stage_dir=stage,
-            )
-
-        mounts = _mounts(config)
-        assert "source=${localEnv:HOME}/.claude/projects,target=/home/node/.claude/projects,type=bind" in mounts
-        assert (
-            "source=${localEnv:HOME}/.claude/history.jsonl,target=/home/node/.claude/history.jsonl,type=bind" in mounts
-        )
-
-    def it_omits_transcript_mounts_when_host_paths_absent(tmp_path: Path):
-        home = tmp_path / "home"
-        home.mkdir()
-        stage = tmp_path / "stage"
-        stage.mkdir()
-
-        with mock.patch("pathlib.Path.home", return_value=home):
-            config = modify_config(
-                {"mounts": [], "runArgs": []},
-                _bare_args(),
-                tmp_path,
-                trusted=False,
-                claude_stage_dir=stage,
-            )
-
-        mounts = " ".join(_mounts(config))
-        assert "/home/node/.claude/projects" not in mounts
-        assert "/home/node/.claude/history.jsonl" not in mounts
-
-
-def describe_trusted_claude_mount():
-    """Opt-in trusted: live read-write bind of the host ~/.claude."""
-
-    def it_mounts_the_live_host_claude_rw(tmp_path: Path):
-        with mock.patch("pathlib.Path.home", return_value=tmp_path / "home"):
-            config = modify_config(
-                {"mounts": [], "runArgs": []},
-                _bare_args(trusted=True),
-                tmp_path,
-                trusted=True,
-                claude_stage_dir=None,
-            )
-
-        mounts = _mounts(config)
-        assert "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind" in mounts
-        # No readonly qualifier -- trusted is read-write.
-        claude_mount = next(m for m in mounts if "/home/node/.claude,type=bind" in m)
-        assert "readonly" not in claude_mount
-
-
-def describe_memory_density():
-    """Per-cage memory cap: 2g default, --memory override, no duplicates."""
-
-    def it_defaults_to_2g(tmp_path: Path):
-        with mock.patch("pathlib.Path.home", return_value=tmp_path / "home"):
-            config = modify_config(
-                {"mounts": [], "runArgs": ["--memory=8g", "--cpus=4", "--pids-limit=500"]},
-                _bare_args(),
-                tmp_path,
-                trusted=False,
-                claude_stage_dir=tmp_path / "stage",
-            )
-
-        run_args = _run_args(config)
-        assert "--memory=2g" in run_args
-        # The old 8g cap is gone; exactly one --memory remains.
-        assert "--memory=8g" not in run_args
-        assert sum(1 for a in run_args if a.startswith("--memory")) == 1
-        # --cpus / --pids-limit untouched.
-        assert "--cpus=4" in run_args
-        assert "--pids-limit=500" in run_args
-
-    def it_honors_the_memory_override(tmp_path: Path):
-        with mock.patch("pathlib.Path.home", return_value=tmp_path / "home"):
-            config = modify_config(
-                {"mounts": [], "runArgs": ["--memory=8g"]},
-                _bare_args(memory="4g"),
-                tmp_path,
-                trusted=False,
-                claude_stage_dir=tmp_path / "stage",
-            )
-
-        run_args = _run_args(config)
-        assert "--memory=4g" in run_args
-        assert sum(1 for a in run_args if a.startswith("--memory")) == 1
-
-    def it_strips_separate_token_memory_pair(tmp_path: Path):
-        """A `--memory VALUE` pair (two tokens) is removed, not just --memory=VALUE."""
-        with mock.patch("pathlib.Path.home", return_value=tmp_path / "home"):
-            config = modify_config(
-                {"mounts": [], "runArgs": ["--memory", "8g", "--cpus=4"]},
-                _bare_args(),
-                tmp_path,
-                trusted=False,
-                claude_stage_dir=tmp_path / "stage",
-            )
-
-        run_args = _run_args(config)
-        assert "8g" not in run_args
-        assert "--memory" not in run_args  # bare token form gone
-        assert "--memory=2g" in run_args
-        assert "--cpus=4" in run_args
-
-
-def describe_allowlist_supplement_mount():
-    """Machine-local domains file is bind-mounted read-only when present."""
-
-    def it_mounts_the_supplement_file_when_present(tmp_path: Path):
-        home = tmp_path / "home"
-        cfg = home / ".config" / "lamp-the-djinn"
-        cfg.mkdir(parents=True)
-        domains = cfg / "allowed-domains.txt"
-        domains.write_text("example.internal\n")
-
-        with mock.patch("pathlib.Path.home", return_value=home):
-            config = modify_config(
-                {"mounts": [], "runArgs": []},
-                _bare_args(),
-                tmp_path,
-                trusted=False,
-                claude_stage_dir=tmp_path / "stage",
-            )
-
-        mount = next(m for m in _mounts(config) if "ltd-allowed-domains.txt" in m)
-        assert f"source={domains}" in mount
-        assert "target=/usr/local/share/ltd-allowed-domains.txt" in mount
-        assert "readonly" in mount
-
-    def it_omits_the_supplement_mount_when_absent(tmp_path: Path):
-        home = tmp_path / "home"
-        home.mkdir()
-
-        with mock.patch("pathlib.Path.home", return_value=home):
-            config = modify_config(
-                {"mounts": [], "runArgs": []},
-                _bare_args(),
-                tmp_path,
-                trusted=False,
-                claude_stage_dir=tmp_path / "stage",
-            )
-
-        assert not any("ltd-allowed-domains.txt" in m for m in _mounts(config))
-
-
-def describe_shipped_firewall_whitelist():
-    """The baked-in egress allowlist must not carry Claude's telemetry/auth hosts.
-
-    The cage reaches the model only through the host proxy (the key never enters
-    the cage), so api.anthropic.com is not needed inside; statsig.* / sentry.io
-    are pure telemetry an isolation cage should not phone home to. Leaving them in
-    also prints a `Failed to resolve statsig.anthropic.com` WARNING every run,
-    since that host doesn't resolve off Anthropic's network.
-    """
-
-    _WHITELIST = Path(__file__).parent / "devcontainer" / "whitelisted-domains.txt"
-    _FORBIDDEN = ("anthropic.com", "statsig.com", "sentry.io")
-
-    def it_lists_no_anthropic_or_telemetry_domains():
-        lines = [
-            line.strip()
-            for line in _WHITELIST.read_text().splitlines()
-            if line.strip() and not line.strip().startswith("#")
-        ]
-        leaked = [d for d in lines if any(bad in d for bad in _FORBIDDEN)]
-        assert not leaked, f"whitelist still ships telemetry/anthropic domains: {leaked}"
-
-
-def describe_allow_domains_file_mount():
-    """--allow-domains-file mounts a per-run domains file read-only into the cage."""
-
-    def it_mounts_the_run_file_when_flag_set(tmp_path: Path):
-        home = tmp_path / "home"
-        home.mkdir()
-        run_file = tmp_path / "this-task-domains.txt"
-        run_file.write_text("example.internal\n")
-
-        with mock.patch("pathlib.Path.home", return_value=home):
-            config = modify_config(
-                {"mounts": [], "runArgs": []},
-                _bare_args(allow_domains_file=str(run_file)),
-                tmp_path,
-                trusted=False,
-                claude_stage_dir=tmp_path / "stage",
-            )
-
-        mount = next(m for m in _mounts(config) if "ltd-allowed-domains.run.txt" in m)
-        assert f"source={run_file}" in mount
-        assert "target=/usr/local/share/ltd-allowed-domains.run.txt" in mount
-        assert "readonly" in mount
-
-    def it_omits_the_run_mount_when_flag_absent(tmp_path: Path):
-        home = tmp_path / "home"
-        home.mkdir()
-
-        with mock.patch("pathlib.Path.home", return_value=home):
-            config = modify_config(
-                {"mounts": [], "runArgs": []},
-                _bare_args(),
-                tmp_path,
-                trusted=False,
-                claude_stage_dir=tmp_path / "stage",
-            )
-
-        assert not any("ltd-allowed-domains.run.txt" in m for m in _mounts(config))
-
-    def it_reads_allow_domains_file_from_env():
-        parser = create_parser()
-        args = parser.parse_args([])
-        with mock.patch.dict("os.environ", {"LTD_ALLOW_DOMAINS_FILE": "/some/path.txt"}, clear=False):
-            apply_env_defaults(args)
-        assert args.allow_domains_file == "/some/path.txt"
-
-
-def describe_trusted_flag_and_env():
-    """--trusted defaults False; LTD_TRUSTED opts in via apply_env_defaults."""
-
-    def it_defaults_trusted_false():
-        parser = create_parser()
-        args = parser.parse_args([])
-        assert args.trusted is False
-
-    def it_sets_trusted_from_flag():
-        parser = create_parser()
-        args = parser.parse_args(["--trusted"])
-        assert args.trusted is True
-
-    def it_reads_trusted_from_env():
-        parser = create_parser()
-        args = parser.parse_args([])
-        with mock.patch.dict("os.environ", {"LTD_TRUSTED": "1"}, clear=False):
-            apply_env_defaults(args)
-        assert args.trusted is True
-
-    def it_reads_memory_from_env():
-        parser = create_parser()
-        args = parser.parse_args([])
-        with mock.patch.dict("os.environ", {"LTD_MEMORY": "4g"}, clear=False):
-            apply_env_defaults(args)
-        assert args.memory == "4g"
+    cache_dir = tmp_path / "cache"
+    (cache_dir / ".devcontainer").mkdir(parents=True)
+    (cache_dir / ".devcontainer" / "devcontainer.json").write_text("{}")
+
+    patches = {
+        "extract_devcontainer_files": mock.DEFAULT,
+        "check_docker_accessible": mock.DEFAULT,
+        "detect_runtime": mock.DEFAULT,
+        "pull_docker_image_if_needed": mock.DEFAULT,
+        "print_container_info": mock.DEFAULT,
+        "stage_claude_config": mock.DEFAULT,
+        "modify_config": mock.DEFAULT,
+        "home_mount_parent_dirs": mock.DEFAULT,
+        "run_devcontainer": mock.DEFAULT,
+        "record_manifest": mock.DEFAULT,
+    }
+    with mock.patch.multiple("lamp_the_djinn.cli", **patches) as mocks:
+        mocks["extract_devcontainer_files"].return_value = cache_dir
+        mocks["detect_runtime"].return_value = "runc"
+        mocks["modify_config"].return_value = {}
+        mocks["home_mount_parent_dirs"].return_value = []
+        with (
+            mock.patch("sys.argv", ["ltd", *argv]),
+            mock.patch("pathlib.Path.home", return_value=tmp_path / "home"),
+            mock.patch("pathlib.Path.cwd", return_value=tmp_path / "proj"),
+        ):
+            main()
+    return mocks
+
+
+def describe_proxy_engagement():
+    """Provider env is injected only on explicit opt-in, never by giving a command."""
+
+    def it_defaults_the_proxy_url_when_the_model_flag_engages_it(tmp_path: Path):
+        mocks = _wire(tmp_path, ["--model", "glm-5.2"])
+        assert mocks["modify_config"].call_args.kwargs["proxy_url"] == "http://host.docker.internal:4000/v1"
+
+    def it_leaves_the_proxy_unset_for_a_bare_command(tmp_path: Path):
+        """`ltd npx pi ...` must NOT engage the proxy: the harness uses its own config."""
+        mocks = _wire(tmp_path, ["npx", "pi"])
+        assert mocks["modify_config"].call_args.kwargs["proxy_url"] is None
+
+    def it_honors_an_explicit_proxy_url(tmp_path: Path):
+        mocks = _wire(tmp_path, ["--proxy-url", "http://elsewhere:9/v1"])
+        assert mocks["modify_config"].call_args.kwargs["proxy_url"] == "http://elsewhere:9/v1"
+
+
+def describe_ssh_key_preflight():
+    """A --ssh-key-file that does not exist fails before Docker is touched."""
+
+    def it_exits_one_for_a_missing_key(tmp_path: Path):
+        with pytest.raises(SystemExit) as exc:
+            _wire(tmp_path, ["--ssh-key-file", str(tmp_path / "absent")])
+        assert exc.value.code == 1
+
+
+def describe_image_fallback():
+    """A pull failure falls back to a local build instead of crashing the run."""
+
+    def it_switches_to_build_when_the_pull_fails(tmp_path: Path):
+        cache_dir = tmp_path / "cache"
+        (cache_dir / ".devcontainer").mkdir(parents=True)
+        (cache_dir / ".devcontainer" / "devcontainer.json").write_text("{}")
+
+        with mock.patch.multiple(
+            "lamp_the_djinn.cli",
+            extract_devcontainer_files=mock.DEFAULT,
+            check_docker_accessible=mock.DEFAULT,
+            detect_runtime=mock.DEFAULT,
+            pull_docker_image_if_needed=mock.DEFAULT,
+            stage_claude_config=mock.DEFAULT,
+            modify_config=mock.DEFAULT,
+            home_mount_parent_dirs=mock.DEFAULT,
+            run_devcontainer=mock.DEFAULT,
+            record_manifest=mock.DEFAULT,
+        ) as mocks:
+            mocks["extract_devcontainer_files"].return_value = cache_dir
+            mocks["detect_runtime"].return_value = "runc"
+            mocks["modify_config"].return_value = {}
+            mocks["home_mount_parent_dirs"].return_value = []
+            mocks["pull_docker_image_if_needed"].side_effect = _CalledProcessError(1, "docker pull")
+            with (
+                mock.patch("sys.argv", ["ltd"]),
+                mock.patch("pathlib.Path.home", return_value=tmp_path / "home"),
+                mock.patch("pathlib.Path.cwd", return_value=tmp_path / "proj"),
+            ):
+                main()
+
+            args = mocks["modify_config"].call_args.args[1]
+            assert args.build is True
+
+
+def describe_cage_wiring():
+    """main hands the resolved pieces to the collaborators that use them."""
+
+    def it_stages_a_claude_copy_by_default(tmp_path: Path):
+        mocks = _wire(tmp_path, [])
+        mocks["stage_claude_config"].assert_called_once()
+        assert mocks["modify_config"].call_args.kwargs["claude_stage_dir"] is not None
+
+    def it_skips_staging_when_trusted(tmp_path: Path):
+        mocks = _wire(tmp_path, ["--trusted"])
+        mocks["stage_claude_config"].assert_not_called()
+        assert mocks["modify_config"].call_args.kwargs["claude_stage_dir"] is None
+
+    def it_records_the_command_to_the_manifest(tmp_path: Path):
+        mocks = _wire(tmp_path, ["npx", "-y", "aider"])
+        mocks["record_manifest"].assert_called_once_with(["npx", "-y", "aider"])
+
+    def it_hands_the_resolved_runtime_to_modify_config(tmp_path: Path):
+        mocks = _wire(tmp_path, [])
+        assert mocks["modify_config"].call_args.kwargs["runtime"] == "runc"

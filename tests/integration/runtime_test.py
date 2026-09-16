@@ -16,7 +16,7 @@ from unittest import mock
 
 import pytest
 
-from lamp_the_djinn.cli import detect_runtime
+from lamp_the_djinn.runtime import detect_runtime
 
 pytestmark = pytest.mark.integration
 
