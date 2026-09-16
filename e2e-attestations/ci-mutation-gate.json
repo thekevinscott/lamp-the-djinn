@@ -1,0 +1,7 @@
+{
+  "command": "echo 'no-op: this branch ships no runtime code -- only new unit-test cells (excluded from the wheel), CI wiring, and docs'",
+  "ran_at": 1789519188,
+  "exit_code": 0,
+  "commit": "f778737ac229d0cf0f0e18b582e30a85ce3680aa",
+  "branch": "ci/mutation-gate"
+}
