@@ -1,24 +1,5 @@
 name: Release
 
-# Deliberately no `paths:` here -- investigated for #102, conclusion is not
-# to add one. Two independent reasons:
-#
-# 1. It would buy little: the reusable workflow's `plan` job (checkout +
-#    setup-node + one `putitoutthere plan` call) runs on every push
-#    regardless, but it is cheap -- no build matrix. The expensive `build`
-#    (per-target compiles) and `publish` jobs already carry
-#    `if: fromJSON(needs.plan.outputs.matrix || '[]')[0] != null` upstream,
-#    so a docs-only push already no-ops past the plan step at negligible
-#    cost. See thekevinscott/putitoutthere's _matrix.yml.
-# 2. It would risk silently dropping a real release: putitoutthere's plan
-#    step (packages/engine/src/plan.ts) decides per-package off a git diff
-#    against `putitoutthere.toml`'s `globs` (here: src/**, pyproject.toml,
-#    README.md, LICENSE) -- but a commit's `release:` trailer can also
-#    force-include a package by name regardless of which files it touched.
-#    That trailer lives in the commit message, not in any path a `paths:`
-#    filter can see, so any filter narrower than "every push" can skip a
-#    trailer-forced release with no error and no pending check -- exactly
-#    the failure mode #102 warned against.
 
 on:
   push:
