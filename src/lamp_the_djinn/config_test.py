@@ -451,3 +451,41 @@ def describe_allow_domains_file_mount():
             )
 
         assert not any("ltd-allowed-domains.run.txt" in m for m in _mounts(config))
+
+
+def describe_gpg_keyring_staging():
+    """--gpg-key-id mounts a disposable, WRITABLE copy of the host keyring.
+
+    gpg-agent writes its socket and lockfiles inside GNUPGHOME, so the old
+    read-only bind of the host ~/.gnupg broke signing outright.
+    """
+
+    def it_mounts_the_stage_dir_writable(tmp_path: Path):
+        stage = tmp_path / "gnupg-stage"
+        stage.mkdir()
+
+        with mock.patch("pathlib.Path.home", return_value=tmp_path / "home"):
+            config = modify_config(
+                {"mounts": [], "runArgs": []},
+                _bare_args(gpg_key_id="C567F8478F289CC4"),
+                tmp_path,
+                gnupg_stage_dir=stage,
+            )
+
+        gnupg_mounts = [m for m in _mounts(config) if "/home/node/.gnupg" in m]
+        assert gnupg_mounts == [f"source={stage},target=/home/node/.gnupg,type=bind"]
+
+    def it_drops_any_host_keyring_bind(tmp_path: Path):
+        stage = tmp_path / "gnupg-stage"
+        stage.mkdir()
+        config = {"mounts": ["source=${localEnv:HOME}/.gnupg,target=/home/node/.gnupg,type=bind"], "runArgs": []}
+
+        with mock.patch("pathlib.Path.home", return_value=tmp_path / "home"):
+            config = modify_config(
+                config,
+                _bare_args(gpg_key_id="C567F8478F289CC4"),
+                tmp_path,
+                gnupg_stage_dir=stage,
+            )
+
+        assert not any("localEnv:HOME}/.gnupg" in m for m in _mounts(config))

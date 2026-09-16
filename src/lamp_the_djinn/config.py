@@ -27,6 +27,7 @@ def modify_config(
     runtime: str = "runc",
     trusted: bool = False,
     claude_stage_dir: Path | None = None,
+    gnupg_stage_dir: Path | None = None,
 ) -> dict:
     """Modify devcontainer config with user-specific settings."""
 
@@ -111,10 +112,14 @@ def modify_config(
         config["mounts"].append(f"source={ssh_key_path},target=/home/node/.ssh/{ssh_key_name},type=bind,readonly")
         config["mounts"].append(f"source={ssh_config_path},target=/home/node/.ssh/config,type=bind,readonly")
 
-    # Add GPG mount if key ID provided
-    if args.gpg_key_id:
+    # GPG keyring: mount the disposable COPY staged on the host by
+    # stage_gnupg_config, READ-WRITE. The host ~/.gnupg is never mounted. A
+    # read-only bind of it used to be the behavior and broke signing outright --
+    # gpg-agent writes its socket and lockfiles inside GNUPGHOME, so it could not
+    # start at all ("Read-only file system" / "No agent running").
+    if args.gpg_key_id and gnupg_stage_dir is not None:
         config.setdefault("mounts", [])
-        config["mounts"].append("source=${localEnv:HOME}/.gnupg,target=/home/node/.gnupg,type=bind,readonly")
+        config["mounts"].append(f"source={gnupg_stage_dir},target=/home/node/.gnupg,type=bind")
 
     # Machine-local firewall allowlist supplement. If the host has a
     # ~/.config/lamp-the-djinn/allowed-domains.txt, bind it read-only into the

@@ -39,6 +39,7 @@ def _wire(tmp_path: Path, argv: list[str]):
         "print_container_info": mock.DEFAULT,
         "stage_claude_config": mock.DEFAULT,
         "run_admin": mock.DEFAULT,
+        "stage_gnupg_config": mock.DEFAULT,
         "modify_config": mock.DEFAULT,
         "home_mount_parent_dirs": mock.DEFAULT,
         "run_devcontainer": mock.DEFAULT,
@@ -99,6 +100,7 @@ def describe_image_fallback():
             detect_runtime=mock.DEFAULT,
             pull_docker_image_if_needed=mock.DEFAULT,
             stage_claude_config=mock.DEFAULT,
+            stage_gnupg_config=mock.DEFAULT,
             modify_config=mock.DEFAULT,
             home_mount_parent_dirs=mock.DEFAULT,
             run_devcontainer=mock.DEFAULT,
@@ -140,6 +142,19 @@ def describe_cage_wiring():
     def it_hands_the_resolved_runtime_to_modify_config(tmp_path: Path):
         mocks = _wire(tmp_path, [])
         assert mocks["modify_config"].call_args.kwargs["runtime"] == "runc"
+
+    def it_stages_a_keyring_copy_only_when_signing_is_requested(tmp_path: Path):
+        mocks = _wire(tmp_path, [])
+        mocks["stage_gnupg_config"].assert_not_called()
+        assert mocks["modify_config"].call_args.kwargs["gnupg_stage_dir"] is None
+
+    def it_hands_the_staged_keyring_to_the_cage_and_marks_it_for_discard(tmp_path: Path):
+        mocks = _wire(tmp_path, ["--gpg-key-id", "C567F8478F289CC4"])
+
+        mocks["stage_gnupg_config"].assert_called_once()
+        stage = mocks["modify_config"].call_args.kwargs["gnupg_stage_dir"]
+        assert stage is not None
+        assert mocks["run_devcontainer"].call_args.kwargs["discard_dirs"] == [stage]
 
 
 def describe_the_admin_subcommand():

@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest tests/e2e/gpg_signing_test.py -m e2e",
+  "ran_at": 1789518393,
+  "exit_code": 0,
+  "commit": "f4e4fbae86aea3f445be1cae77ebd8d796e3a7bb",
+  "branch": "fix/gpg-staged-keyring-copy"
+}
