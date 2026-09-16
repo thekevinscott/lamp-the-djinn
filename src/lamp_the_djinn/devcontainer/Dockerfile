@@ -6,6 +6,11 @@
 ARG PLAYWRIGHT_VERSION=1.57.0
 FROM mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble
 
+# Ubuntu's default /bin/sh is dash, which has no pipefail -- a failing command
+# before a pipe (e.g. `curl ... | tar xz ...` or `getent ... | cut ...` below)
+# would otherwise go unnoticed.
+SHELL ["/bin/bash", "-c", "-o", "pipefail"]
+
 ARG TZ
 ENV TZ="$TZ"
 

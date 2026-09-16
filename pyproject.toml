@@ -42,6 +42,10 @@ dev = [
     "pytest-cov>=5.0.0",
     "ruff>=0.13.0",
     "mypy>=1.11.0",
+    # Structured Dockerfile parsing for the cage-Dockerfile parity test
+    # (tests/integration/dockerfile_parity_test.py) -- not something to
+    # hand-roll a regex parser for.
+    "dockerfile-parse>=2.0.0",
     # Real-PTY driver for the interactive e2e agent cells. Requires Python >=3.12;
     # gated so the package's own >=3.10 floor still resolves. Interactive e2e is
     # never run in CI, so a 3.10/3.11 dev simply skips those cells.
