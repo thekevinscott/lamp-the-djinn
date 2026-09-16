@@ -66,3 +66,8 @@ gpg-signing-worktree
 # Docs site (VitePress)
 node_modules/
 docs/.vitepress/cache
+
+# Worktrees. Branch work happens in .worktrees/ (see AGENTS.md); .claude/worktrees/
+# is where the agent harness puts its own. Neither belongs in the index.
+.worktrees/
+.claude/worktrees/
