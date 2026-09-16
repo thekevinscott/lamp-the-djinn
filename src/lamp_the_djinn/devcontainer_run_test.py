@@ -29,6 +29,7 @@ def _run(popen: mock.Mock, **kwargs):
         mock.patch("lamp_the_djinn.devcontainer_run.subprocess.Popen", popen),
         mock.patch("lamp_the_djinn.devcontainer_run.teardown_cage") as teardown,
         mock.patch("lamp_the_djinn.devcontainer_run.fix_mount_dir_ownership") as fix_owner,
+        mock.patch("lamp_the_djinn.devcontainer_run.discard_staged_dirs") as discard,
     ):
         with pytest.raises(SystemExit) as exc:
             run_devcontainer(
@@ -39,7 +40,7 @@ def _run(popen: mock.Mock, **kwargs):
                 debug=True,
                 **kwargs,
             )
-    return exc.value, teardown, fix_owner
+    return exc.value, teardown, fix_owner, discard
 
 
 def describe_run_devcontainer():
@@ -67,19 +68,19 @@ def describe_run_devcontainer():
 
     def it_reowns_mount_parents_after_the_cage_is_up():
         popen = mock.Mock(side_effect=[_popen(0), _popen(0)])
-        _, _, fix_owner = _run(popen, mount_parent_dirs=["/home/node/.pi"])
+        _, _, fix_owner, _ = _run(popen, mount_parent_dirs=["/home/node/.pi"])
 
         fix_owner.assert_called_once_with("clanker.instance=xyz", ["/home/node/.pi"], True)
 
     def it_propagates_the_child_exit_code():
         popen = mock.Mock(side_effect=[_popen(0), _popen(3)])
-        exit_exc, _, _ = _run(popen)
+        exit_exc, _, _, _ = _run(popen)
         assert exit_exc.code == 3
 
     def it_maps_a_killed_child_to_the_shell_convention():
         """A child killed by signal N reports -N; a shell reports 128 + N."""
         popen = mock.Mock(side_effect=[_popen(0), _popen(-9)])
-        exit_exc, _, _ = _run(popen)
+        exit_exc, _, _, _ = _run(popen)
         assert exit_exc.code == 137
 
     def it_tears_the_cage_down_even_when_up_fails():
@@ -102,5 +103,12 @@ def describe_run_devcontainer():
 
     def it_tears_the_cage_down_on_success():
         popen = mock.Mock(side_effect=[_popen(0), _popen(0)])
-        _, teardown, _ = _run(popen)
+        _, teardown, _, _ = _run(popen)
         teardown.assert_called_once_with("clanker.instance=xyz")
+
+    def it_discards_the_staged_dirs_once_the_cage_is_down():
+        """The staged keyring holds private key material; it must not outlive the run."""
+        popen = mock.Mock(side_effect=[_popen(0), _popen(0)])
+        _, _, _, discard = _run(popen, discard_dirs=[Path("/cache/gnupg-stage")])
+
+        discard.assert_called_once_with([Path("/cache/gnupg-stage")])
