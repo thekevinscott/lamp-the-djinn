@@ -7,7 +7,8 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
-      - '.devcontainer/**'
+      # Deps this lane installs via `uv sync`, plus [tool.pytest.ini_options]
+      # (the unit/integration marker config both jobs select on).
       - 'pyproject.toml'
       - '.github/workflows/test-cli.yml'
   pull_request:
@@ -16,7 +17,6 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
-      - '.devcontainer/**'
       - 'pyproject.toml'
       - '.github/workflows/test-cli.yml'
 
