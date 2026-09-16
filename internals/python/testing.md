@@ -34,7 +34,7 @@ unit coverage is representative.
 ## Running
 
 ```bash
-uv run --extra dev pytest                 # full suite
-uv run --extra dev pytest tests/test_cli.py
-uv run --extra dev pytest --cov           # with coverage
+uv run pytest                 # full suite
+uv run pytest tests/test_cli.py
+uv run pytest --cov           # with coverage
 ```

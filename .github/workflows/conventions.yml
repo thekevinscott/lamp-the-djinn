@@ -46,10 +46,6 @@ jobs:
     with:
       languages: '["python"]'
       source: src
-      # Pinned rather than tracking npm latest: an empty value resolved to
-      # 0.0.86, which predates `one-function-per-file`, and the stale binary
-      # passed every other rule so nothing looked wrong.
-      version: '0.0.120'
       # `mutation` is deliberately absent. It is a ~200s sweep per PR that
       # touches src, and this repo has a backlog of pre-existing survivors;
       # enabling it is its own decision, tracked in #98.
