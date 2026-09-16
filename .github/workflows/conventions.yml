@@ -1,20 +1,5 @@
 name: Testing Conventions
 
-# Enforce the testing-conventions standard on this repo. Calls the upstream
-# reusable workflow, which runs each rule as its own job -- so a failure names
-# the rule that failed instead of collapsing every gate into one red step.
-#   https://github.com/thekevinscott/testing-conventions
-#
-# This repo previously hand-rolled the same checks as a sequence of `npx` steps
-# in a single job. That drifted: `one-function-per-file` and `mutation` were
-# never wired up at all, and the version pin silently resolved a binary 34
-# releases old. The reusable workflow runs every applicable gate by default, so
-# a new rule arrives with an upstream release rather than waiting for someone
-# to notice it is missing.
-#
-# Pinned to the upstream rolling `v0` tag, the same convention release.yml uses
-# for putitoutthere: v0 tracks the latest backwards-compatible release.
-
 on:
   push:
     branches: [main]
@@ -44,8 +29,4 @@ jobs:
     with:
       languages: '["python"]'
       source: src
-      # `mutation` is PR-only and diff-scoped upstream: it mutates the files a
-      # PR changed and reports only survivors on changed lines. A whole-tree
-      # sweep is ~200s; a one-line change to the largest module measured 51s,
-      # a small module 5s. Line-scoped waivers live in testing-conventions.toml.
       gates: '["colocated-test", "one-function-per-file", "unit-lint", "unit-coverage", "integration-lint", "mutation", "packaging", "e2e-verify"]'

@@ -93,6 +93,35 @@ implementation. User-visible change → `README.md` / `ARCHITECTURE.md`. Interna
 change → `internals/`. A docs-only change (Markdown only, no behavior) skips the
 red/green dance: every existing test stays green, so go straight to it.
 
+## Comments are rationale, and they are short
+
+A comment earns its place only when the reason is not derivable from the code:
+a constraint, a workaround, a decision that looks wrong until you know why.
+Two lines is a normal length. Four is long. A paragraph is a bug.
+
+The failure mode here is specific, and it is an agent failure mode. Reasoning
+that felt load-bearing while the change was being made gets committed next to
+the code, and the file accumulates an essay nobody asked for. Concretely, none
+of these belong in a source file:
+
+- "Why we did not do X" blocks arguing against an alternative.
+- Investigation write-ups: what was measured, what broke, what the symptom was.
+- Citations to another repo's source files, which go stale the moment that repo
+  moves.
+- Restating what the line does.
+
+That material is real, and it has a home: the issue and the PR body. A reader
+who wants the history can run `git blame`.
+
+What survives a cut is the constraint a future editor would otherwise break.
+"`gpg-agent` writes its socket inside `GNUPGHOME`, so a read-only bind cannot
+start it at all" is worth keeping, because deleting it invites someone to
+re-introduce the read-only mount. It is two lines, not twelve.
+
+Prefer a better name over a comment explaining a bad one. Prefer deleting a
+comment over shortening it. A deferral is not a comment at all -- file the
+issue (see *Now over later*).
+
 ## Now over later
 
 Make the complete, correct change in this PR. Don't punt to a hypothetical
