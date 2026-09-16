@@ -489,3 +489,33 @@ def describe_gpg_keyring_staging():
             )
 
         assert not any("localEnv:HOME}/.gnupg" in m for m in _mounts(config))
+
+
+def describe_the_uid_remap_opt_out():
+    """`updateRemoteUserUID` is turned off only when BOTH host ids match the cage
+    user's. `tests/integration/uid_remap_test.py` pins the same branch against the
+    real devcontainer schema; these cells pin the comparison itself, which is what
+    a mutant flips."""
+
+    def it_turns_the_remap_off_when_both_ids_match(tmp_path: Path):
+        with (
+            mock.patch("os.getuid", return_value=1000),
+            mock.patch("os.getgid", return_value=1000),
+        ):
+            config = modify_config({"mounts": [], "runArgs": []}, _bare_args(), tmp_path)
+        assert config["updateRemoteUserUID"] is False
+
+    @pytest.mark.parametrize(
+        "uid,gid",
+        [(1001, 1000), (1000, 1001), (1001, 1001), (999, 1000), (1000, 999), (999, 999)],
+    )
+    def it_leaves_the_remap_alone_on_any_mismatch(tmp_path: Path, uid: int, gid: int):
+        """Each id is tested above and below the cage user's on its own, because an
+        ordered comparison (< <= > >=) in place of the equality would still be true
+        for a one-sided set and slip past."""
+        with (
+            mock.patch("os.getuid", return_value=uid),
+            mock.patch("os.getgid", return_value=gid),
+        ):
+            config = modify_config({"mounts": [], "runArgs": []}, _bare_args(), tmp_path)
+        assert "updateRemoteUserUID" not in config
