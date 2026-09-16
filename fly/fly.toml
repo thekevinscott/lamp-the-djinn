@@ -14,7 +14,7 @@ primary_region = "iad"
 
 [build]
   # Reuse the same published cage image as the local backend.
-  image = "ghcr.io/thekevinbot/lamp-the-djinn:latest"
+  image = "ghcr.io/thekevinscott/lamp-the-djinn:latest"
   # To build from this repo instead of the published image, comment out `image`
   # above and point Fly at the Dockerfile:
   #   dockerfile = "../.devcontainer/Dockerfile"

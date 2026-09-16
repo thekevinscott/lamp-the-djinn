@@ -73,7 +73,7 @@ The app is configured to **scale to zero** (`min_machines_running = 0`,
 
 ## What still needs verifying
 
-- Whether the published cage image (`ghcr.io/thekevinbot/lamp-the-djinn:latest`)
+- Whether the published cage image (`ghcr.io/thekevinscott/lamp-the-djinn:latest`)
   actually contains `tailscaled`/`tailscale`; if not, add them to the image or
   bake a Fly-specific Dockerfile.
 - Whether userspace-networking Tailscale is sufficient for the agent's traffic,
