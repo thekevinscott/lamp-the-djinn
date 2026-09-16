@@ -1,6 +1,6 @@
 {
   "name": "Claude Code Sandbox",
-  "image": "ghcr.io/thekevinbot/lamp-the-djinn:latest",
+  "image": "ghcr.io/thekevinscott/lamp-the-djinn:latest",
   "runArgs": [
     "--cap-add=NET_ADMIN",
     "--cap-add=NET_RAW",

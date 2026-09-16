@@ -30,6 +30,7 @@ def describe_pull_docker_image_if_needed():
 def describe_image_name():
     """The published cage image."""
 
-    def it_points_at_the_project_registry():
-        assert IMAGE_NAME.startswith("ghcr.io/")
-        assert "lamp-the-djinn" in IMAGE_NAME
+    def it_points_at_the_current_org():
+        # Repo moved thekevinbot -> thekevinscott (#90); pin the exact owner so a
+        # future move can't leave this drifted the way #94 did.
+        assert IMAGE_NAME == "ghcr.io/thekevinscott/lamp-the-djinn:latest"

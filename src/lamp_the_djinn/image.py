@@ -2,7 +2,7 @@
 
 import subprocess
 
-IMAGE_NAME = "ghcr.io/thekevinbot/lamp-the-djinn:latest"
+IMAGE_NAME = "ghcr.io/thekevinscott/lamp-the-djinn:latest"
 
 
 def pull_docker_image_if_needed(debug: bool = False) -> None:
