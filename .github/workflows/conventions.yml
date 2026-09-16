@@ -23,12 +23,6 @@ on:
       - 'tests/**'
       - 'pyproject.toml'
       - 'testing-conventions.toml'
-      # The `e2e-verify` gate's receipt check. The legacy root
-      # `e2e-attestation.json` is deliberately absent: upstream's engine
-      # (packages/rust/src/e2e.rs, LEGACY_ATTESTATION) hard-excludes it from
-      # both the "does this branch touch scoped source" diff and the "does
-      # the branch add a receipt" diff, so a change to that file cannot move
-      # this lane's verdict. #102.
       - 'e2e-attestations/**'
       - '.github/workflows/conventions.yml'
   pull_request:
