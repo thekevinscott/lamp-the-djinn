@@ -1,0 +1,41 @@
+name: Lint Shell
+
+# Scoped out of the old `Lint` workflow. See #102.
+#
+# The glob is repo-wide on purpose: shellcheck walks `find . -name '*.sh'`, and
+# scripts live in six directories (scripts/, .devcontainer/, deploy/, fly/,
+# grafana/, src/lamp_the_djinn/devcontainer/). Enumerating them would drift.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.sh'
+      - '.github/workflows/lint-shell.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '**/*.sh'
+      - '.github/workflows/lint-shell.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        run: |
+          find . -name '*.sh' -type f | xargs shellcheck --severity=warning

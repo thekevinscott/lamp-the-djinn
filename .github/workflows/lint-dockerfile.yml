@@ -1,47 +1,32 @@
-name: Lint
+name: Lint Dockerfile
+
+# Scoped out of the old `Lint` workflow. See #102.
+#
+# Only `.devcontainer/Dockerfile` is in the trigger because that is the only
+# file hadolint is pointed at. The shipped copy at
+# src/lamp_the_djinn/devcontainer/Dockerfile goes unlinted -- separate concern,
+# tracked in #103.
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+    paths:
+      - '.devcontainer/Dockerfile'
+      - '.github/workflows/lint-dockerfile.yml'
   pull_request:
-    branches:
-      - main
+    branches: [main]
+    paths:
+      - '.devcontainer/Dockerfile'
+      - '.github/workflows/lint-dockerfile.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
-  python:
-    name: Python (ruff + mypy)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Ruff lint
-        run: uvx ruff check .
-
-      - name: Ruff format check
-        run: uvx ruff format --check .
-
-      - name: Mypy
-        run: uvx mypy src/lamp_the_djinn
-
-  shellcheck:
-    name: ShellCheck
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install ShellCheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
-
-      - name: Run ShellCheck
-        run: |
-          find . -name '*.sh' -type f | xargs shellcheck --severity=warning
-
   hadolint:
     name: Hadolint (Dockerfile)
     runs-on: ubuntu-latest
