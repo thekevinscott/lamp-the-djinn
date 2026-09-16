@@ -45,9 +45,9 @@ permissions:
   contents: read
 
 env:
-  # Pin the binary by setting a version (e.g. 0.1.0); empty tracks npm latest,
-  # the same default as the upstream reusable workflow.
-  TC_VERSION: ''
+  # Pinned: an empty value resolves to 0.0.86 through npx, which predates
+  # `unit one-function-per-file`.
+  TC_VERSION: '0.0.120'
 
 jobs:
   conventions:
