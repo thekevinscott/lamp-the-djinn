@@ -149,10 +149,8 @@ def describe_per_run_allow_domains_file():
         run_file = tmp_path / "this-task-domains.txt"
         run_file.write_text("httpbin.org\n")
 
-        # One probe, three facts, each emitting an unambiguous sentinel line:
-        #   - the listed domain is reachable (firewall picked up the run file)
-        #   - a non-listed domain is still blocked
-        #   - writing the mounted file from inside the cage is denied (EROFS)
+        # One probe, three sentinels: listed domain reachable, unlisted blocked,
+        # mounted file not writable.
         target = "/usr/local/share/ltd-allowed-domains.run.txt"
         probe = (
             "set +e; "

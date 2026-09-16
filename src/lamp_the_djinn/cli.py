@@ -43,17 +43,12 @@ def main() -> None:
     parser = create_parser()
     args = parser.parse_args()
 
-    # `ltd admin` is host-side: no cage, no Docker probe. Dispatch before any of
-    # the cage setup below runs.
+    # Host-side: no cage, no Docker probe. Must dispatch before the setup below.
     if is_admin_command(args.command):
         sys.exit(run_admin())
 
-    # Detect whether the user explicitly engaged the proxy feature (via the
-    # --model/--proxy-url flags or the LTD_MODEL/LTD_PROXY_URL env) BEFORE
-    # apply_env_defaults coalesces everything to defaults. Merely giving a command
-    # does NOT engage the proxy: a bare `ltd npx pi ...` injects no provider env
-    # and leaves the proxy URL unset, so the harness uses its own config (e.g. the
-    # user's mounted ~/.pi). Provider env is injected only on explicit opt-in.
+    # Must run BEFORE apply_env_defaults coalesces everything to defaults.
+    # Provider env is injected only on explicit opt-in.
     proxy_engaged = any(
         [
             args.proxy_url is not None,

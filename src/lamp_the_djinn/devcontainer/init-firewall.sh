@@ -226,14 +226,8 @@ log "Host network detected as: $HOST_NETWORK"
 # Set up remaining iptables rules
 iptables -A INPUT -s "$HOST_NETWORK" -j ACCEPT
 
-# Host LAN egress.
-# By DEFAULT we allow OUTPUT to the entire host /24 ($HOST_NETWORK). That is a
-# broad allowance: it opens the whole local subnet (every machine on the host's
-# LAN), not just the model proxy. This default is unchanged.
-#
-# OPT-IN tightening (off unless both env vars are set): if LTD_EGRESS_PROXY_ONLY
-# is non-empty AND LTD_PROXY_HOST is set, allow OUTPUT only to that single proxy
-# host instead of the whole /24. This is the "proxy-only egress" mode.
+# Host LAN egress. The default opens the whole host /24, not just the model
+# proxy; the opt-in branch below narrows it to the proxy host alone.
 # UNVERIFIED: requires a real container with NET_ADMIN to test
 if [ -n "${LTD_EGRESS_PROXY_ONLY:-}" ] && [ -n "${LTD_PROXY_HOST:-}" ]; then
     # UNVERIFIED: requires a real container with NET_ADMIN to test

@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest -m e2e",
+  "ran_at": 1789521792,
+  "exit_code": 0,
+  "commit": "b161610a345a977dad85c94a871dfc51bf33df6d",
+  "branch": "chore/trim-comments"
+}

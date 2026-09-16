@@ -66,24 +66,11 @@ def run_devcontainer(
         + run_cmd
     )
 
-    # Run both `up` and the agent as CHILDREN (the agent inherits our stdio, so an
-    # interactive TUI gets clean TTY passthrough), then ALWAYS tear the cage down
-    # -- we cannot execvp here or no teardown code path would ever run and every
-    # cage would leak.
-    #
-    # A clean exit reaches the `finally`, but two ways out do NOT: SIGTERM (a
-    # `kill`) and SIGHUP (the user closes their terminal) terminate ltd outright,
-    # and a `finally` does not run when the default signal action fires -- and an
-    # interactive session is exactly when those arrive. So we install handlers
-    # that kill whatever child is live and tear the cage down ON the signal path
-    # before exiting. The signals can also land during `up` (the cage is created
-    # partway through it); if no handler were armed yet, ltd would die and the
-    # orphaned `up` would finish bringing the cage up -- a leak. So arm them
-    # BEFORE `up`, covering the whole lifecycle.
-    #
-    # SIGINT is different: a terminal Ctrl-C reaches the child's process group
-    # directly, so the agent handles it; ltd just ignores it and survives long
-    # enough to reach the normal teardown and propagate the child's exit code.
+    # Both run as children, never execvp: an exec leaves no teardown path and
+    # every cage leaks. SIGTERM/SIGHUP bypass `finally`, so they get handlers that
+    # tear down explicitly -- armed BEFORE `up`, since a signal during `up` would
+    # otherwise orphan a half-created cage. SIGINT is ignored here because the
+    # terminal delivers it to the child's process group directly.
     child: subprocess.Popen | None = None
 
     def _on_terminating_signal(signum, _frame):
@@ -91,8 +78,6 @@ def run_devcontainer(
             child.terminate()
         teardown_cage(id_label)
         discard_staged_dirs(discard_dirs or [])
-        # We are on the signal path; skip the rest of the function and report the
-        # signal the way a shell would (128 + N).
         os._exit(128 + signum)
 
     previous_sigint = signal.signal(signal.SIGINT, signal.SIG_IGN)
@@ -106,11 +91,8 @@ def run_devcontainer(
             if child.returncode != 0:
                 raise subprocess.CalledProcessError(child.returncode, up_cmd)
         else:
-            # Quiet (default): hide the build/firewall/devcontainer noise so only
-            # the agent's own output reaches the terminal. Show a transient status
-            # while the cage comes up (a first build can be slow), then erase it so
-            # it doesn't linger above the agent's output. TTY only -- piped output
-            # stays clean. Surface the full output if the up fails.
+            # Quiet (default): only the agent's own output reaches the terminal.
+            # Transient status on a TTY only, so piped output stays clean.
             is_tty = sys.stderr.isatty()
             if is_tty:
                 sys.stderr.write("Starting cage...")
@@ -125,10 +107,8 @@ def run_devcontainer(
                 sys.stderr.write(up_err)
                 raise subprocess.CalledProcessError(child.returncode, up_cmd)
 
-        # The cage is up. Re-own (from the host, never via in-cage sudo) any
-        # root-owned parent dirs Docker created for home-nested mounts, so the
-        # harness can write next to a single-file mount -- e.g. pi's session dir
-        # beside a mounted models.json. See fix_mount_dir_ownership.
+        # Docker creates absent parent dirs of a home-nested mount owned by root.
+        # Re-own them from the host, never via in-cage sudo.
         fix_mount_dir_ownership(id_label, mount_parent_dirs or [], debug)
 
         child = subprocess.Popen(exec_cmd)

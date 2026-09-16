@@ -1,10 +1,8 @@
 name: Lint Dockerfile
 
 # Scoped out of the old `Lint` workflow. See #102.
-#
-# Lints both cage Dockerfiles: .devcontainer/Dockerfile (what CI builds and
-# publishes) and src/lamp_the_djinn/devcontainer/Dockerfile (the packaged
-# local-build fallback). See #88/#103.
+# Lints both cage Dockerfiles: .devcontainer/Dockerfile and
+# src/lamp_the_djinn/devcontainer/Dockerfile (packaged local-build fallback).
 
 on:
   push:
@@ -42,12 +40,8 @@ jobs:
           curl -sL -o hadolint "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64"
           chmod +x hadolint
 
-      # Ignored rules, from .hadolint.yaml (auto-discovered from the repo
-      # root, so it covers both files below without a --config flag):
-      # DL3008: Pin versions in apt-get - not practical for either image
-      # DL3059: Multiple consecutive RUN - intentional for caching
-      # This job blocks the PR on any other finding -- see #103 for why it
-      # used to run with continue-on-error and why that changed.
+      # Ignored rules from .hadolint.yaml: DL3008 (pin apt versions) not
+      # practical for either image; DL3059 (multiple RUN) intentional for caching.
       - name: Run Hadolint on the devcontainer Dockerfile
         run: ./hadolint .devcontainer/Dockerfile
 

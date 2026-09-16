@@ -3,13 +3,8 @@
 import shutil
 from pathlib import Path
 
-# Allowlist of names copied from the host ~/.claude into the strict-mode stage
-# dir. Default-deny: anything NOT named here is never copied. In particular this
-# excludes .credentials.json and any auth/token/credential-bearing file, so the
-# untrusted agent never sees host credentials. `hooks` is included so the user's
-# own hooks (e.g. the transcript-posting Stop hook) still run in strict mode --
-# they execute against the disposable copy, so the agent can't persist changes
-# to the host's hooks.
+# Default-deny: anything not named here is never copied, which is what keeps
+# .credentials.json out of the cage.
 _CLAUDE_CONFIG_ALLOWLIST = ("settings.json", "CLAUDE.md", "commands", "agents", "skills", "hooks")
 
 

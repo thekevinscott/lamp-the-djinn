@@ -36,14 +36,8 @@ def modify_config(
         config.pop("image", None)
         config["build"] = {"dockerfile": "Dockerfile", "context": "."}
 
-    # Skip devcontainer's UID-remap step when it would rename the cage user to the
-    # ids it already has. Left on (its default for a non-root remoteUser), the CLI
-    # builds and exports an extra derived image on EVERY `up` -- and the cage is
-    # torn down per run, so that cost is never amortized. Measured 2.4s -> 2.0s.
-    #
-    # BOTH ids must match: the remap sets uid and gid together, so opting out on a
-    # partial match would leave bind-mounted files wrong-grouped, which is the
-    # breakage the remap exists to prevent.
+    # The remap sets uid and gid together, so a partial match must NOT opt out --
+    # that leaves bind-mounted files wrong-grouped.
     if os.getuid() == CAGE_USER_UID and os.getgid() == CAGE_USER_GID:
         config["updateRemoteUserUID"] = False
 
@@ -54,12 +48,8 @@ def modify_config(
         config["workspaceMount"] = f"source={project_dir},target={project_dir},type=bind,consistency=delegated"
         config["workspaceFolder"] = str(project_dir)
 
-    # Trust-tiered ~/.claude config exposure.
-    #
-    # First, strip any pre-existing /home/node/.claude mount (the embedded
-    # devcontainer.json ships a live rw bind) and the old claude-code-config
-    # readonly-replace block, so we can append exactly the mount(s) the chosen
-    # trust tier wants -- same pattern as the ssh/gpg filtering below.
+    # The embedded devcontainer.json ships a live rw bind; strip it before
+    # appending whatever the trust tier wants.
     if "mounts" in config:
         config["mounts"] = [
             m for m in config["mounts"] if "/home/node/.claude" not in m and "claude-code-config" not in m
@@ -67,27 +57,12 @@ def modify_config(
 
     config.setdefault("mounts", [])
     if trusted:
-        # TRUSTED: live read-write bind of the host ~/.claude -- the agent's
-        # config writes (settings, hooks, CLAUDE.md) land on the host directly.
-        # This is the historical behavior, now opt-in only.
         config["mounts"].append("source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind")
     else:
-        # STRICT (default): mount a disposable COPY of the allowlisted config
-        # (staged on the host by stage_claude_config) at /home/node/.claude. It
-        # is rw inside the cage but the host ~/.claude is untouched, so the
-        # agent's config writes are discarded on exit.
-        #
-        # DEFERRED: vet-on-exit selective apply of the agent's config changes.
-        # Strict mode currently just discards them (safe); propagating approved
-        # changes back to the host is a follow-up.
         if claude_stage_dir is not None:
             config["mounts"].append(f"source={claude_stage_dir},target=/home/node/.claude,type=bind")
-        # Transcripts/session history are DATA, not config: write them back so
-        # session continuity (`--continue`) and the transcript hook keep working.
-        # These nested rw binds overlay the copied .claude with the live host
-        # data dirs. (settings/hooks/CLAUDE.md remain the copied, discard-on-exit
-        # part; only this transcript data is write-back safe.) Mount each only if
-        # the host path exists, so a fresh install doesn't fail on a missing dir.
+        # Transcripts are data, not config: write them back so `--continue` keeps
+        # working. Only this data is write-back safe.
         home = Path.home()
         if (home / ".claude" / "projects").exists():
             config["mounts"].append(
@@ -112,21 +87,14 @@ def modify_config(
         config["mounts"].append(f"source={ssh_key_path},target=/home/node/.ssh/{ssh_key_name},type=bind,readonly")
         config["mounts"].append(f"source={ssh_config_path},target=/home/node/.ssh/config,type=bind,readonly")
 
-    # GPG keyring: mount the disposable COPY staged on the host by
-    # stage_gnupg_config, READ-WRITE. The host ~/.gnupg is never mounted. A
-    # read-only bind of it used to be the behavior and broke signing outright --
-    # gpg-agent writes its socket and lockfiles inside GNUPGHOME, so it could not
-    # start at all ("Read-only file system" / "No agent running").
+    # Must be the writable staged copy, never the host ~/.gnupg: gpg-agent writes
+    # its socket inside GNUPGHOME, so a read-only bind cannot start it at all.
     if args.gpg_key_id and gnupg_stage_dir is not None:
         config.setdefault("mounts", [])
         config["mounts"].append(f"source={gnupg_stage_dir},target=/home/node/.gnupg,type=bind")
 
-    # Machine-local firewall allowlist supplement. If the host has a
-    # ~/.config/lamp-the-djinn/allowed-domains.txt, bind it read-only into the
-    # cage where init-firewall.sh expects it. The firewall script resolves these
-    # domains and adds them to the allowed-domains ipset (in addition to the
-    # baked-in whitelist), letting a host opt extra domains through egress
-    # without rebuilding the image.
+    # Machine-local firewall allowlist supplement, at the path init-firewall.sh
+    # expects.
     allowed_domains = Path.home() / ".config" / "lamp-the-djinn" / "allowed-domains.txt"
     if allowed_domains.exists():
         config.setdefault("mounts", [])
@@ -134,11 +102,8 @@ def modify_config(
             f"source={allowed_domains},target=/usr/local/share/ltd-allowed-domains.txt,type=bind,readonly"
         )
 
-    # Per-run firewall allowlist supplement (--allow-domains-file / LTD_ALLOW_DOMAINS_FILE).
-    # Host-supplied, this cage only. Distinct target from the machine-local file
-    # above so both coexist; mounted READ-ONLY so the agent can read but not edit
-    # it (writing fails EROFS) -- the firewall reads it once at startup, before the
-    # agent runs, so the agent can never widen its own egress.
+    # Read-only, and a distinct target from the machine-local file so both
+    # coexist. Writable would let the agent widen its own egress.
     run_domains_file = getattr(args, "allow_domains_file", None)
     if run_domains_file:
         run_domains_path = Path(run_domains_file).expanduser().resolve()
@@ -147,18 +112,8 @@ def modify_config(
             f"source={run_domains_path},target=/usr/local/share/ltd-allowed-domains.run.txt,type=bind,readonly"
         )
 
-    # Harness package cache mount -- TRUST-gated so npx/uvx don't re-download the
-    # harness every run. Two tiers:
-    #
-    #   trusted   -> mount the host cache READ-WRITE and point npm/uv at it. The
-    #                first run populates it; later runs reuse it (no re-download).
-    #                The agent is trusted, so a writable host cache is acceptable.
-    #   untrusted -> NO host cache mount and NO cache env. The cage uses its own
-    #                writable in-container cache (ephemeral, re-downloads each run,
-    #                but safe). We must NOT point npm/uv at a read-only host mount:
-    #                npm writes to _cacache/tmp even while fetching, so a read-only
-    #                cache fails hard with EROFS. (A read-only cooldown cache would
-    #                need an overlay/copy to be writable-on-top; deferred.)
+    # Trusted only, and read-write. A read-only cache is not a safe middle ground:
+    # npm writes _cacache/tmp even while fetching, so it fails EROFS.
     use_cache_env = False
     if trusted:
         config.setdefault("mounts", [])
@@ -167,15 +122,8 @@ def modify_config(
         )
         use_cache_env = True
 
-    # WRITABLE credential-persistence mount. Harness sessions (e.g. an OAuth
-    # token a harness writes after `login`) persist across runs via this volume.
-    #
-    # SECURITY PRINCIPLE: this mount is READ-WRITE and lives inside the cage, so
-    # the untrusted agent can READ everything in it. Therefore persist ONLY
-    # scoped/revocable credentials here. The model key never enters the cage --
-    # it stays in the LiteLLM proxy on the host. The primary git identity stays
-    # out too: push host-side, or supply a fine-grained, single-repo, revocable
-    # PAT. See README "Credential persistence" for the full rationale.
+    # The untrusted agent can read everything in here, so only scoped, revocable
+    # credentials belong in it. See README "Credential persistence".
     config.setdefault("mounts", [])
     config["mounts"].append(
         "source=${localEnv:HOME}/.cache/lamp-the-djinn/auth,target=/home/node/.config/ltd-auth,type=bind"
@@ -236,17 +184,10 @@ def modify_config(
                 config["runArgs"].extend(["-v", vol])
                 continue
             host_path = Path(vol).resolve()
-            # A bare path UNDER the host HOME maps to the same relative location
-            # under the cage user's HOME (`~/.pi` -> `/home/node/.pi`), so tools
-            # that read HOME-relative config (pi's ~/.pi, npm's ~/.npmrc, ...) find
-            # it -- the cage user is `node`, not the host user, so a path-identity
-            # mount of a `$HOME` path lands where the cage never looks. This is the
-            # same remap ltd already does by hand for ~/.claude, ~/.ssh, ~/.gnupg.
-            # A path OUTSIDE HOME keeps path identity (`/mnt/x` -> `/mnt/x`) so the
-            # absolute paths an agent emits stay valid on the host. NOTE: Docker
-            # creates any absent parent dirs of a home-nested mount owned by ROOT;
-            # ltd re-owns them to the cage user from the host once the cage is up
-            # (see home_mount_parent_dirs / fix_mount_dir_ownership).
+            # A HOME-relative path is remapped under the cage user's HOME, because
+            # the cage user is `node` -- path identity would land where nothing
+            # looks. Outside HOME, keep path identity so the absolute paths an
+            # agent emits stay valid on the host.
             if host_path == host_home or host_home in host_path.parents:
                 target = Path("/home/node") / host_path.relative_to(host_home)
             else:
@@ -256,10 +197,8 @@ def modify_config(
         for env_var in args.env:
             config["runArgs"].extend(["-e", env_var])
 
-    # Point the in-container npm/uv caches at the mounted harness cache only when
-    # it is mounted (trusted). Untrusted runs leave the cage's default writable
-    # caches so npx/uvx fetch the harness fresh -- pointing npm/uv at a read-only
-    # mount fails with EROFS (npm writes _cacache/tmp even while fetching).
+    # Only when the cache is actually mounted. Pointing npm/uv at a missing or
+    # read-only path fails EROFS.
     if use_cache_env:
         config["runArgs"].extend(["-e", "UV_CACHE_DIR=/home/node/.cache/ltd-harness/uv"])
         config["runArgs"].extend(["-e", "npm_config_cache=/home/node/.cache/ltd-harness/npm"])
@@ -272,10 +211,8 @@ def modify_config(
         for key, value in prov_env.items():
             config["runArgs"].extend(["-e", f"{key}={value}"])
 
-    # The container reaches the host (the LiteLLM proxy, or a host service a
-    # harness config like pi's models.json points at) via the docker bridge
-    # gateway. On Linux host.docker.internal is not automatic, so always map it
-    # explicitly -- it must resolve regardless of whether ltd injects provider env.
+    # Not automatic on Linux, and must resolve whether or not ltd injects
+    # provider env.
     config["runArgs"].append("--add-host=host.docker.internal:host-gateway")
 
     # Build postStartCommand

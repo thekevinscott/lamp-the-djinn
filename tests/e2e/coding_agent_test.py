@@ -43,10 +43,8 @@ import pytest
 
 pytestmark = pytest.mark.e2e
 
-# The user's exact command. The bug is package-agnostic (it is the read-only
-# mount that fails), but we use the real coding agent the user invoked so the
-# reproduction is faithful and nobody can wave it away as "you tested something
-# smaller."
+# The real agent the user invoked. The bug is package-agnostic, but a faithful
+# reproduction is harder to wave away.
 AGENT_PACKAGE = "@earendil-works/pi-coding-agent"
 
 
