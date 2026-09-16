@@ -38,6 +38,7 @@ def _wire(tmp_path: Path, argv: list[str]):
         "pull_docker_image_if_needed": mock.DEFAULT,
         "print_container_info": mock.DEFAULT,
         "stage_claude_config": mock.DEFAULT,
+        "run_admin": mock.DEFAULT,
         "modify_config": mock.DEFAULT,
         "home_mount_parent_dirs": mock.DEFAULT,
         "run_devcontainer": mock.DEFAULT,
@@ -139,3 +140,32 @@ def describe_cage_wiring():
     def it_hands_the_resolved_runtime_to_modify_config(tmp_path: Path):
         mocks = _wire(tmp_path, [])
         assert mocks["modify_config"].call_args.kwargs["runtime"] == "runc"
+
+
+def describe_the_admin_subcommand():
+    """`ltd admin` is host-side: it must never reach the cage or probe Docker."""
+
+    def it_dispatches_before_any_cage_setup(tmp_path: Path):
+        cache_dir = tmp_path / "cache"
+        (cache_dir / ".devcontainer").mkdir(parents=True)
+        (cache_dir / ".devcontainer" / "devcontainer.json").write_text("{}")
+
+        with mock.patch.multiple(
+            "lamp_the_djinn.cli",
+            check_docker_accessible=mock.DEFAULT,
+            run_devcontainer=mock.DEFAULT,
+            run_admin=mock.DEFAULT,
+        ) as mocks:
+            mocks["run_admin"].return_value = 0
+            with mock.patch("sys.argv", ["ltd", "admin"]), pytest.raises(SystemExit) as exc:
+                main()
+
+        assert exc.value.code == 0
+        mocks["run_admin"].assert_called_once()
+        mocks["check_docker_accessible"].assert_not_called()
+        mocks["run_devcontainer"].assert_not_called()
+
+    def it_leaves_a_cage_command_named_admin_alone(tmp_path: Path):
+        mocks = _wire(tmp_path, ["admin", "--status"])
+        mocks["run_admin"].assert_not_called()
+        mocks["run_devcontainer"].assert_called_once()

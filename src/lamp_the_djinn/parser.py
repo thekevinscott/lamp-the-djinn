@@ -15,6 +15,7 @@ def create_parser() -> argparse.ArgumentParser:
             "  ltd npx @anthropic/claude\n"
             "  ltd --model glm-5.2 aider\n"
             "  ltd                       # bare: runs claude --dangerously-skip-permissions\n"
+            "  ltd admin                 # host-side admin screen (no cage)\n"
             "\n"
             "Everything after ltd's options is the command to run in the cage; the "
             "command's own flags (e.g. -p) are passed through untouched."

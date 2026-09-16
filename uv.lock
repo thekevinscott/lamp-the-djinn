@@ -7,6 +7,10 @@ resolution-markers = [
     "python_full_version < '3.12'",
 ]
 
+[options]
+exclude-newer = "2026-09-13T00:17:26.620564665Z"
+exclude-newer-span = "P3D"
+
 [[package]]
 name = "ast-serialize"
 version = "0.5.0"
