@@ -6,16 +6,13 @@ on:
       - main
     paths:
       - '.devcontainer/**'
-      - '.github/workflows/docker-publish.yml'
+      - '.github/workflows/publish-cage-image.yml'
   pull_request:
     branches:
       - main
     paths:
       - '.devcontainer/**'
-      # Self-reference was missing here (present on `push` only, #102): a PR
-      # touching only this file's build args/matrix built and tested nothing
-      # until it landed on main.
-      - '.github/workflows/docker-publish.yml'
+      - '.github/workflows/publish-cage-image.yml'
   schedule:
     # Weekly on Sunday at midnight UTC - keeps GitHub Actions cache warm
     - cron: '0 0 * * 0'

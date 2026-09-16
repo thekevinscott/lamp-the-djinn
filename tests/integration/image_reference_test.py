@@ -34,7 +34,7 @@ def _current_repo_slug() -> str:
 
 
 def describe_image_name():
-    """IMAGE_NAME must track wherever docker-publish.yml actually publishes."""
+    """IMAGE_NAME must track wherever publish-cage-image.yml actually publishes."""
 
     def it_matches_the_current_repo_owner():
         assert IMAGE_NAME == f"ghcr.io/{_current_repo_slug()}:latest"
