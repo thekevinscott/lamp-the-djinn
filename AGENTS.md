@@ -174,7 +174,13 @@ money). Run it locally and attest:
 uvx testing-conventions e2e attest 'uv run pytest -m e2e'
 ```
 
-Commit the resulting receipt — current versions write a per-branch
-`e2e-attestations/<branch>.json` rather than the legacy root
-`e2e-attestation.json`, and both are tracked here. CI's `e2e verify` checks it
-names the current commit.
+Commit the resulting receipt to `e2e-attestations/<branch>.json`. `e2e verify`
+is diff-relative, not commit-exact (#96): on a PR it diffs `<base>...HEAD` and
+asks two content questions — did the scoped source (`src`) change, and does
+the branch's diff add or update *some* file under `e2e-attestations/`. It
+never inspects the recorded command, exit code, or which receipt was touched,
+so it can't tell a real run from a no-op, or your own receipt from an
+unrelated one edited in passing — known upstream weaknesses
+(thekevinscott/testing-conventions#68, and the branch-correlation gap filed as
+thekevinscott/testing-conventions#641). Treat a green `e2e-verify` as "a
+receipt exists," not "e2e ran here."

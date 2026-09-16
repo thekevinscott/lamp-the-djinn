@@ -1,0 +1,7 @@
+{
+  "command": "echo 'no-op: docs/CI-wiring cleanup only -- drops a dead legacy JSON file and fixes a stale AGENTS.md claim, no runtime code touched'",
+  "ran_at": 1789520520,
+  "exit_code": 0,
+  "commit": "9c180d7b872d7a63175659fb976db37025087f40",
+  "branch": "chore/96-e2e-verify-doc-and-legacy-receipt"
+}
