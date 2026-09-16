@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest tests/e2e/admin_tui_test.py -m e2e",
+  "ran_at": 1789518219,
+  "exit_code": 0,
+  "commit": "fd34d10851b9c56e675d625199b6fdbc2adcdd0e",
+  "branch": "feat/admin-tui"
+}
