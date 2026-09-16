@@ -22,6 +22,19 @@
 The suite mocks with `unittest.mock` (the `pytest-mock` `mocker` fixture is not
 in the dev set). Follow that pattern — see `tests/test_isolation_test.py`.
 
+## Dockerfile parity
+
+`tests/integration/dockerfile_parity_test.py` pins the shared invariants
+between the two cage Dockerfiles (`.devcontainer/Dockerfile`, published by CI,
+and `src/lamp_the_djinn/devcontainer/Dockerfile`, the packaged local-build
+fallback): base image version, pinned tool versions, the apt/pnpm/Claude
+Code/pi install steps, the firewall-script `COPY`s, and the `ENV` block. It
+does **not** assert byte equality -- the two files legitimately differ (Docker
+CLI, the pinned global Playwright CLI, and OCI labels are specific to one
+image or the other; see the comments in each file). Uses `dockerfile-parse` to
+read real Dockerfile instructions rather than diffing raw lines, so it isn't
+thrown off by comments or by content that's deliberately only on one side.
+
 ## Coverage
 
 Coverage runs via **pytest-cov** over `src/lamp_the_djinn` with branch

@@ -2,21 +2,24 @@ name: Lint Dockerfile
 
 # Scoped out of the old `Lint` workflow. See #102.
 #
-# Only `.devcontainer/Dockerfile` is in the trigger because that is the only
-# file hadolint is pointed at. The shipped copy at
-# src/lamp_the_djinn/devcontainer/Dockerfile goes unlinted -- separate concern,
-# tracked in #103.
+# Lints both cage Dockerfiles: .devcontainer/Dockerfile (what CI builds and
+# publishes) and src/lamp_the_djinn/devcontainer/Dockerfile (the packaged
+# local-build fallback). See #88/#103.
 
 on:
   push:
     branches: [main]
     paths:
       - '.devcontainer/Dockerfile'
+      - 'src/lamp_the_djinn/devcontainer/Dockerfile'
+      - '.hadolint.yaml'
       - '.github/workflows/lint-dockerfile.yml'
   pull_request:
     branches: [main]
     paths:
       - '.devcontainer/Dockerfile'
+      - 'src/lamp_the_djinn/devcontainer/Dockerfile'
+      - '.hadolint.yaml'
       - '.github/workflows/lint-dockerfile.yml'
 
 concurrency:
@@ -28,7 +31,7 @@ permissions:
 
 jobs:
   hadolint:
-    name: Hadolint (Dockerfile)
+    name: Hadolint (Dockerfiles)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -39,14 +42,14 @@ jobs:
           curl -sL -o hadolint "https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64"
           chmod +x hadolint
 
-      # Ignored rules:
-      # DL3008: Pin versions in apt-get - not practical for devcontainer
+      # Ignored rules, from .hadolint.yaml (auto-discovered from the repo
+      # root, so it covers both files below without a --config flag):
+      # DL3008: Pin versions in apt-get - not practical for either image
       # DL3059: Multiple consecutive RUN - intentional for caching
-      # DL4006: Set SHELL option -o pipefail - we use default shell
-      # SC1091: Can't follow sourced file - external scripts
-      - name: Run Hadolint
-        continue-on-error: true
-        run: |
-          echo "=== Running hadolint on .devcontainer/Dockerfile ==="
-          ./hadolint --version
-          ./hadolint .devcontainer/Dockerfile
+      # This job blocks the PR on any other finding -- see #103 for why it
+      # used to run with continue-on-error and why that changed.
+      - name: Run Hadolint on the devcontainer Dockerfile
+        run: ./hadolint .devcontainer/Dockerfile
+
+      - name: Run Hadolint on the packaged cage Dockerfile
+        run: ./hadolint src/lamp_the_djinn/devcontainer/Dockerfile

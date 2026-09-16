@@ -1,0 +1,14 @@
+# Hadolint configuration, applied by default (hadolint auto-discovers
+# .hadolint.yaml in the current directory) to both cage Dockerfiles:
+# .devcontainer/Dockerfile and src/lamp_the_djinn/devcontainer/Dockerfile.
+# See: https://github.com/hadolint/hadolint#configure
+
+ignored:
+  # DL3008: Pin versions in apt-get install
+  # Ubuntu base image with cache mounts - pinning apt versions isn't
+  # practical for either cage image.
+  - DL3008
+
+  # DL3059: Multiple consecutive RUN instructions
+  # Intentional -- separate layers for caching.
+  - DL3059
