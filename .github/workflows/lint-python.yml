@@ -1,0 +1,49 @@
+name: Lint Python
+
+# Split out of the old single `Lint` workflow, which had no `paths:` and so ran
+# ruff, mypy, shellcheck and hadolint on every PR -- a Dockerfile edit ran mypy,
+# a src/ edit ran hadolint. Paths filters are per-workflow, not per-job, so each
+# tool needs its own file to be scoped. See #102.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**/*.py'
+      # ruff and mypy are both configured under [tool.*] here, so a config edit
+      # changes the verdict without touching a single .py file.
+      - 'pyproject.toml'
+      - '.github/workflows/lint-python.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - '**/*.py'
+      - 'pyproject.toml'
+      - '.github/workflows/lint-python.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python (ruff + mypy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Ruff lint
+        run: uvx ruff check .
+
+      - name: Ruff format check
+        run: uvx ruff format --check .
+
+      - name: Mypy
+        run: uvx mypy src/lamp_the_djinn
