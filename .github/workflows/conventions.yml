@@ -46,7 +46,8 @@ jobs:
     with:
       languages: '["python"]'
       source: src
-      # `mutation` is deliberately absent. It is a ~200s sweep per PR that
-      # touches src, and this repo has a backlog of pre-existing survivors;
-      # enabling it is its own decision, tracked in #98.
-      gates: '["colocated-test", "one-function-per-file", "unit-lint", "unit-coverage", "integration-lint", "packaging", "e2e-verify"]'
+      # `mutation` is PR-only and diff-scoped upstream: it mutates the files a
+      # PR changed and reports only survivors on changed lines. A whole-tree
+      # sweep is ~200s; a one-line change to the largest module measured 51s,
+      # a small module 5s. Line-scoped waivers live in testing-conventions.toml.
+      gates: '["colocated-test", "one-function-per-file", "unit-lint", "unit-coverage", "integration-lint", "mutation", "packaging", "e2e-verify"]'

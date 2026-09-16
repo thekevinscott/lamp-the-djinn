@@ -79,9 +79,30 @@ change, not speculative future-proofing.
 `.github/workflows/conventions.yml`: colocated unit tests, unit-test isolation,
 one non-trivial function per module (`unit one-function-per-file`, scanning
 `src`), integration tests that don't mock first-party code, the unit-coverage
-floor, packaging hygiene (no test files in the built wheel/sdist), and e2e
+floor, mutation testing on the lines a PR changed (`unit mutation`, scanning
+`src`), packaging hygiene (no test files in the built wheel/sdist), and e2e
 attestation freshness. It is the gate; this document is the why. See
 `testing-conventions.toml` for the project's floors and exemptions.
+
+`unit mutation` is the rung above the coverage floor. Coverage asks whether a
+line ran; mutation asks whether any test would notice if that line were wrong.
+That is why the floor can stay loose at 50% — the floor is a ratchet, and
+mutation is what actually holds the unit suite honest. The gate is binary, not a
+score: no unexplained surviving mutant on a line the PR touched. It runs on pull
+requests only and mutates only the files in `<base>...HEAD`, because a whole-tree
+sweep is too slow to gate on.
+
+A survivor means one of two things, and they need different fixes. If the unit
+suite should have caught it, add the assertion. If the line is genuinely asserted
+at another tier — the integration suite runs first-party code for real, so
+host-env branches live there — it gets an exemption in `testing-conventions.toml`
+naming the exact lines and the test that does assert on them. Whole-file
+mutation exemptions are rejected by the tool, and a listed line that isn't
+actually failing is a hard error, so the waiver list can't rot. Don't add one
+pre-emptively; add it in the PR that trips it.
+
+An interrupted mutation run leaves the live mutant written into the source file.
+Check the working tree is clean before you trust a local result.
 
 `one-function-per-file` is why `src/lamp_the_djinn/` is many small modules
 rather than one `cli.py`: a source file may hold at most one module-scope
@@ -94,9 +115,7 @@ CI calls the upstream **reusable workflow**
 which runs each rule as its own job. Don't re-hand-roll these as `npx` steps:
 the previous hand-rolled version drifted, silently missing
 `one-function-per-file` and `mutation` entirely. A new upstream rule arrives
-with a release instead of waiting for someone to notice it is absent. `mutation`
-is the one gate deliberately left out of `gates:`, pending a decision on its
-cost.
+with a release instead of waiting for someone to notice it is absent.
 
 The binary is **not** a project dependency — it's a standalone CLI. Locally, run
 it through npm (`pnpm dlx testing-conventions@<version>`): the npm and PyPI
@@ -108,6 +127,17 @@ tests' legitimate `monkeypatch`/`patch` use. `unit coverage` shells out to
 
 ```sh
 pnpm dlx testing-conventions@0.0.120 integration lint --language python --config testing-conventions.toml src
+```
+
+`unit mutation` needs one more thing: its Python engine is a *separate PyPI
+package* that happens to share the name, and it must be importable by the
+`python3` the rule shells out to. Layer it over the project venv rather than
+locking it in — it isn't a project dependency either:
+
+```sh
+uv run --with testing-conventions pnpm dlx testing-conventions@0.0.120 \
+  unit mutation --language python --base origin/main \
+  --config testing-conventions.toml src
 ```
 
 E2E is never run in CI (real containers and model turns are slow and cost
