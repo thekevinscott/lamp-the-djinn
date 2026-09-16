@@ -75,3 +75,9 @@ def describe_trust_tier_flag():
         parser = create_parser()
         args = parser.parse_args(["--trusted"])
         assert args.trusted is True
+
+
+def describe_help_text():
+    def it_advertises_the_admin_screen():
+        """`ltd admin` is discoverable: it is a reserved word, not a cage command."""
+        assert "ltd admin" in create_parser().format_help()

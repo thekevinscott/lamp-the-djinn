@@ -1,11 +1,11 @@
 """Unit tests for the admin subcommand reservation and its terminal lifecycle."""
 
 import io
+from unittest import mock
 
 import pytest
 
 from .admin import is_admin_command, run_admin
-from .admin_screen import TITLE
 
 pytestmark = pytest.mark.unit
 
@@ -43,15 +43,18 @@ def describe_running_the_admin_screen_without_a_terminal():
     def it_prints_the_frame_once_and_exits():
         stdout = FakeStream(tty=False)
 
-        code = run_admin(stdin=FakeStream(tty=False), stdout=stdout)
+        with mock.patch("lamp_the_djinn.admin.render_admin_screen", return_value="FRAME") as render:
+            code = run_admin(stdin=FakeStream(tty=False), stdout=stdout)
 
         assert code == 0
-        assert TITLE in stdout.getvalue()
+        assert stdout.getvalue() == "FRAME\n"
+        render.assert_called_once()
 
     def it_takes_over_no_terminal_when_only_stdin_is_a_tty():
         """Redirected stdout must not get alternate-screen escapes."""
         stdout = FakeStream(tty=False)
 
-        run_admin(stdin=FakeStream(tty=True), stdout=stdout)
+        with mock.patch("lamp_the_djinn.admin.render_admin_screen", return_value="FRAME"):
+            run_admin(stdin=FakeStream(tty=True), stdout=stdout)
 
         assert "\x1b[?1049h" not in stdout.getvalue()
