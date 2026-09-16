@@ -188,8 +188,8 @@ name = "curtaincall"
 version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pexpect" },
-    { name = "pyte" },
+    { name = "pexpect", marker = "python_full_version >= '3.12'" },
+    { name = "pyte", marker = "python_full_version >= '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ca/12/056a3c89fcbc135b15a7cef872472a73bdad3594ddfccbe11b9a028b2f5f/curtaincall-0.3.0.tar.gz", hash = "sha256:afc9e9ce00a256982d69a737976527d38217082ca79fcafcf381fa2cd2bba041", size = 68784, upload-time = "2026-02-16T01:44:39.874Z" }
 wheels = [
@@ -201,7 +201,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions" },
+    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -221,7 +221,7 @@ wheels = [
 name = "lamp-the-djinn"
 source = { editable = "." }
 
-[package.optional-dependencies]
+[package.dev-dependencies]
 dev = [
     { name = "curtaincall", marker = "python_full_version >= '3.12'" },
     { name = "mypy" },
@@ -234,17 +234,18 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "curtaincall", marker = "python_full_version >= '3.12' and extra == 'dev'", specifier = ">=0.3.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0.0" },
-    { name = "pytest-describe", marker = "extra == 'dev'", specifier = ">=2.2.0" },
-    { name = "pytest-watcher", marker = "extra == 'dev'", specifier = ">=0.4.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.13.0" },
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "curtaincall", marker = "python_full_version >= '3.12'", specifier = ">=0.3.0" },
+    { name = "mypy", specifier = ">=1.11.0" },
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.24.0" },
+    { name = "pytest-cov", specifier = ">=5.0.0" },
+    { name = "pytest-describe", specifier = ">=2.2.0" },
+    { name = "pytest-watcher", specifier = ">=0.4.0" },
+    { name = "ruff", specifier = ">=0.13.0" },
 ]
-provides-extras = ["dev"]
 
 [[package]]
 name = "librt"
@@ -422,7 +423,7 @@ name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ptyprocess" },
+    { name = "ptyprocess", marker = "python_full_version >= '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
@@ -461,7 +462,7 @@ name = "pyte"
 version = "0.8.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "wcwidth" },
+    { name = "wcwidth", marker = "python_full_version >= '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/ab/ab/b599762933eba04de7dc5b31ae083112a6c9a9db15b01d3109ad797559d9/pyte-0.8.2.tar.gz", hash = "sha256:5af970e843fa96a97149d64e170c984721f20e52227a2f57f0a54207f08f083f", size = 92301, upload-time = "2023-11-12T09:33:43.217Z" }
 wheels = [

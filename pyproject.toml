@@ -30,7 +30,10 @@ lamp-the-djinn = "lamp_the_djinn.cli:main"
 ltd = "lamp_the_djinn.cli:main"
 lamp-the-djinn-remote = "lamp_the_djinn.cli:shell_remote"
 
-[project.optional-dependencies]
+[dependency-groups]
+# PEP 735 group, not a [project.optional-dependencies] extra: `uv sync` installs
+# default groups automatically, so CI (including the testing-conventions reusable
+# workflow, which runs a bare `uv sync`) gets the test plugins without a flag.
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",

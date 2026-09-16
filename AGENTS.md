@@ -89,16 +89,25 @@ function whose body runs longer than a line. Trivial one-liners still share a
 file. A new non-trivial function means a new module — and, via
 `colocated-test`, a new sibling `*_test.py`.
 
-The binary is **not** a project dependency — it's a standalone CLI. CI runs it
-via `npx -y testing-conventions`; locally, use `uvx testing-conventions`. Each
-rule takes the root it should scan, and the roots differ: the unit rules scan
-`src` (the colocated tests), but `integration lint` scans `tests/integration`
-(pointed at `src` it would flag the colocated unit tests' legitimate
-`monkeypatch`/`patch` use). `unit coverage` shells out to `coverage`/`pytest`,
-so run it with the project venv on PATH (CI does `uv sync` first). For example:
+CI calls the upstream **reusable workflow**
+(`thekevinscott/testing-conventions/.github/workflows/testing-conventions.yml@v0`),
+which runs each rule as its own job. Don't re-hand-roll these as `npx` steps:
+the previous hand-rolled version drifted, silently missing
+`one-function-per-file` and `mutation` entirely. A new upstream rule arrives
+with a release instead of waiting for someone to notice it is absent. `mutation`
+is the one gate deliberately left out of `gates:`, pending a decision on its
+cost.
+
+The binary is **not** a project dependency — it's a standalone CLI. Locally, run
+it through npm (`pnpm dlx testing-conventions@<version>`): the npm and PyPI
+release trains differ, and the versions the workflow pins exist on npm only.
+Every rule takes the package root, `src` — including `integration lint`, which
+derives `tests/integration` itself and does **not** flag the colocated unit
+tests' legitimate `monkeypatch`/`patch` use. `unit coverage` shells out to
+`coverage`/`pytest`, so run it with the project venv on PATH. For example:
 
 ```sh
-uvx testing-conventions integration lint --language python --config testing-conventions.toml tests/integration
+pnpm dlx testing-conventions@0.0.120 integration lint --language python --config testing-conventions.toml src
 ```
 
 E2E is never run in CI (real containers and model turns are slow and cost
@@ -108,5 +117,7 @@ money). Run it locally and attest:
 uvx testing-conventions e2e attest 'uv run pytest -m e2e'
 ```
 
-Commit the resulting `e2e-attestation.json`; CI's `e2e verify` checks it names
-the current commit.
+Commit the resulting receipt — current versions write a per-branch
+`e2e-attestations/<branch>.json` rather than the legacy root
+`e2e-attestation.json`, and both are tracked here. CI's `e2e verify` checks it
+names the current commit.
