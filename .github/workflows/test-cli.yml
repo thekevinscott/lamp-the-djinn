@@ -1,16 +1,5 @@
 name: Test CLI
 
-# `.devcontainer/**` (repo root) is deliberately absent, despite #102's own
-# text assuming it belonged here. Verified: the unit suite's
-# devcontainer_files_test.py mocks get_embedded_devcontainer_dir with a fake
-# directory rather than reading the real one, and the file this lane's CLI
-# actually ships is the separate embedded copy at
-# src/lamp_the_djinn/devcontainer/ (already covered by `src/**` -- diff
-# confirms the two trees are not even byte-identical). No unit or
-# integration test reads the repo-root `.devcontainer/`; only
-# test-container.yml, docker-publish.yml and the two devcontainer lint
-# lanes do.
-
 on:
   push:
     branches:
