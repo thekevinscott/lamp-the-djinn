@@ -3,6 +3,33 @@
 Produce as little code as possible. Drive existing tools through their own
 flags and config before writing an adapter. Every line is a liability.
 
+## Work in a worktree
+
+Every branch gets its own worktree under `.worktrees/`, never the main
+checkout:
+
+```sh
+git worktree add .worktrees/<branch> -b <branch> origin/main
+```
+
+`.worktrees/` is gitignored. So is `.claude/worktrees/`, where the agent
+harness puts its own.
+
+Working directly in the root checkout means a long-running command -- an e2e
+run, a mutation sweep -- is reading files that another branch is rewriting
+underneath it. That is not hypothetical: a stray mutation run rewrote
+`config.py` mid-measurement and twice got a live mutant swept into a commit.
+A worktree per branch makes the collision impossible.
+
+Removing one has a trap. `cd` to the root checkout first; `git -C` does not
+save you, because a shell whose cwd has just been deleted cannot resolve
+itself and every later command fails before git runs.
+
+```sh
+cd /path/to/lamp-the-djinn
+git worktree remove .worktrees/<branch>
+```
+
 ## Red test first, always
 
 **Every implementation starts with a test going red, FIRST.** Before you touch
