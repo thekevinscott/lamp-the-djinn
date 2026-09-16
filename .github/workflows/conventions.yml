@@ -1,25 +1,19 @@
 name: Testing Conventions
 
-# Deterministic enforcement of the testing discipline documented in AGENTS.md:
-# colocated unit tests, isolated unit tests, one non-trivial function per
-# module, integration tests that never mock first-party code, a unit-coverage
-# floor, no test files in the built distribution, and a fresh e2e attestation. This workflow IS the gate; AGENTS.md
-# is the why, and testing-conventions.toml holds the floors and exemptions.
+# Enforce the testing-conventions standard on this repo. Calls the upstream
+# reusable workflow, which runs each rule as its own job -- so a failure names
+# the rule that failed instead of collapsing every gate into one red step.
+#   https://github.com/thekevinscott/testing-conventions
 #
-# It runs the published `testing-conventions` binary via npx (a prebuilt npm
-# package -- no Rust toolchain, no compile) and gets its Python environment from
-# uv (no pip), matching the rest of the repo's CI.
+# This repo previously hand-rolled the same checks as a sequence of `npx` steps
+# in a single job. That drifted: `one-function-per-file` and `mutation` were
+# never wired up at all, and the version pin silently resolved a binary 34
+# releases old. The reusable workflow runs every applicable gate by default, so
+# a new rule arrives with an upstream release rather than waiting for someone
+# to notice it is missing.
 #
-# Why one job with explicit per-rule scan paths, not the upstream zero-config
-# reusable workflow: the drop-in drives a single `path` through every rule, but
-# this repo's rules need different roots. The unit rules scan `src` (the
-# colocated unit tests), while `integration lint` must scan `tests/integration`
-# -- pointed at `src` it would flag the colocated unit tests' legitimate
-# monkeypatch/patch use, going red for the wrong reason. The drop-in's coverage
-# job also installs only `coverage pytest`, missing the `pytest-describe` this
-# repo's describe_/it_ tests need to be collected at all. So the wiring is
-# explicit: the right root per rule, and the project's own venv on PATH for
-# coverage.
+# Pinned to the upstream rolling `v0` tag, the same convention release.yml uses
+# for putitoutthere: v0 tracks the latest backwards-compatible release.
 
 on:
   push:
@@ -30,6 +24,7 @@ on:
       - 'pyproject.toml'
       - 'testing-conventions.toml'
       - 'e2e-attestation.json'
+      - 'e2e-attestations/**'
       - '.github/workflows/conventions.yml'
   pull_request:
     branches: [main]
@@ -39,88 +34,23 @@ on:
       - 'pyproject.toml'
       - 'testing-conventions.toml'
       - 'e2e-attestation.json'
+      - 'e2e-attestations/**'
       - '.github/workflows/conventions.yml'
 
 permissions:
   contents: read
 
-env:
-  # Pinned: an empty value resolves to 0.0.86 through npx, which predates
-  # `unit one-function-per-file`.
-  TC_VERSION: '0.0.120'
-
 jobs:
   conventions:
-    name: Testing conventions
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          # `e2e verify` walks git history for the latest code commit.
-          fetch-depth: 0
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Install project + dev dependencies
-        # The dev extra pins pytest-describe (collects the describe_/it_ suites)
-        # and coverage, which `unit coverage` shells out to. Python 3.12 satisfies
-        # curtaincall's marker too.
-        run: uv sync --extra dev --python 3.12
-
-      - name: Put the project venv on PATH
-        # `unit coverage` runs `coverage run -m pytest` from PATH; it must resolve
-        # to the synced venv (which has coverage + pytest-describe), not a bare
-        # system python.
-        run: echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
-
-      - name: Set up Node (runs the testing-conventions binary via npx)
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Colocated unit tests (src)
-        run: npx -y "testing-conventions${TC_VERSION:+@$TC_VERSION}" unit colocated-test --language python --config testing-conventions.toml src
-
-      - name: Unit-test isolation (src)
-        run: npx -y "testing-conventions${TC_VERSION:+@$TC_VERSION}" unit lint --language python --config testing-conventions.toml src
-
-      - name: One function per module (src)
-        run: npx -y "testing-conventions${TC_VERSION:+@$TC_VERSION}" unit one-function-per-file --language python --config testing-conventions.toml src
-
-      - name: Integration-test mocking hygiene (tests/integration)
-        run: npx -y "testing-conventions${TC_VERSION:+@$TC_VERSION}" integration lint --language python --config testing-conventions.toml tests/integration
-
-      - name: Unit coverage floor (src)
-        run: npx -y "testing-conventions${TC_VERSION:+@$TC_VERSION}" unit coverage --language python --config testing-conventions.toml src
-
-      - name: Build the distribution
-        run: uv build
-
-      - name: Packaging — no test files in the built artifact
-        run: |
-          set -euo pipefail
-          # nullglob: an unmatched glob expands to nothing, not the literal.
-          shopt -s nullglob
-          checked=0
-          for dist in dist/*.whl dist/*.tar.gz; do
-            npx -y "testing-conventions${TC_VERSION:+@$TC_VERSION}" packaging "$dist" --language python
-            checked=$((checked + 1))
-          done
-          if [ "$checked" -eq 0 ]; then
-            echo "::error::no built distribution (.whl / .tar.gz) found in dist/"
-            exit 1
-          fi
-
-      - name: E2E attestation freshness (verify-if-present)
-        # Default-on, skip-if-absent: the e2e suite is never run in CI (real
-        # containers + model turns are slow and cost money), so this only checks
-        # that a committed attestation names the current commit. Until task #20
-        # produces one, there's nothing to verify.
-        run: |
-          if [ -f e2e-attestation.json ]; then
-            npx -y "testing-conventions${TC_VERSION:+@$TC_VERSION}" e2e verify
-          else
-            echo "no e2e-attestation.json yet -- skipping (create one with 'testing-conventions e2e attest')"
-          fi
+    uses: thekevinscott/testing-conventions/.github/workflows/testing-conventions.yml@v0
+    with:
+      languages: '["python"]'
+      source: src
+      # Pinned rather than tracking npm latest: an empty value resolved to
+      # 0.0.86, which predates `one-function-per-file`, and the stale binary
+      # passed every other rule so nothing looked wrong.
+      version: '0.0.120'
+      # `mutation` is deliberately absent. It is a ~200s sweep per PR that
+      # touches src, and this repo has a backlog of pre-existing survivors;
+      # enabling it is its own decision, tracked in #98.
+      gates: '["colocated-test", "one-function-per-file", "unit-lint", "unit-coverage", "integration-lint", "packaging", "e2e-verify"]'
