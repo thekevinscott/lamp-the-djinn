@@ -213,3 +213,5 @@ unrelated one edited in passing — known upstream weaknesses
 (thekevinscott/testing-conventions#68, and the branch-correlation gap filed as
 thekevinscott/testing-conventions#641). Treat a green `e2e-verify` as "a
 receipt exists," not "e2e ran here."
+
+@internals/session-handoff.md
