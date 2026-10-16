@@ -73,6 +73,10 @@ def describe_proxy_engagement():
         mocks = _wire(tmp_path, ["npx", "pi"])
         assert mocks["modify_config"].call_args.kwargs["proxy_url"] is None
 
+    def it_hands_the_model_to_the_cage_defaulting_to_local(tmp_path: Path):
+        assert _wire(tmp_path, ["--model", "glm-5.2"])["modify_config"].call_args.kwargs["model"] == "glm-5.2"
+        assert _wire(tmp_path, [])["modify_config"].call_args.kwargs["model"] == "local"
+
     def it_honors_an_explicit_proxy_url(tmp_path: Path):
         mocks = _wire(tmp_path, ["--proxy-url", "http://elsewhere:9/v1"])
         assert mocks["modify_config"].call_args.kwargs["proxy_url"] == "http://elsewhere:9/v1"
