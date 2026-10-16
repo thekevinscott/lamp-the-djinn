@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest -m e2e -rs tests/e2e/coding_agent_test.py tests/e2e/mount_permissions_test.py tests/e2e/admin_tui_test.py ${EXTRA_E2E:-}",
+  "ran_at": 1792150688,
+  "exit_code": 0,
+  "commit": "80173280409bba3af5e1279d3fb3353269f80143",
+  "branch": "fix/run-cleanup"
+}
