@@ -19,6 +19,6 @@ else
 fi
 
 echo "Running unit tests..."
-uv run pytest tests/test_cli.py -m "not integration" --tb=short -q
+uv run pytest -m unit --tb=short -q
 
 echo "✓ All checks passed"
