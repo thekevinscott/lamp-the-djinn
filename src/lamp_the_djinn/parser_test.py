@@ -77,7 +77,15 @@ def describe_trust_tier_flag():
         assert args.trusted is True
 
 
+def describe_runtime_flag():
+    def it_defaults_to_auto():
+        assert create_parser().parse_args([]).runtime == "auto"
+
+
 def describe_help_text():
     def it_advertises_the_admin_screen():
         """`ltd admin` is discoverable: it is a reserved word, not a cage command."""
         assert "ltd admin" in create_parser().format_help()
+
+    def it_names_no_environment_variables():
+        assert "LTD_" not in create_parser().format_help()
