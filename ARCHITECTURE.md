@@ -76,6 +76,9 @@ The security model rests on four properties, not on any single fence:
    `.env`; the proxy holds the real keys, the agent gets only a placeholder
    proxy token.
 3. **Ephemeral** — the cage is disposable; `git reset --hard` is the undo.
+   The per-run workspace dir (`~/.cache/lamp-the-djinn/workspace-<id>/`) is
+   deleted on every exit path, success or failure, because it holds secrets:
+   the staged `~/.gnupg` copy and a `devcontainer.json` carrying `--gh-token`.
 4. **Diff review** — the human reviews the produced diff before it leaves.
 
 ## Startup cost

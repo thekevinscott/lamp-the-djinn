@@ -26,6 +26,7 @@ from .image import IMAGE_NAME, pull_docker_image_if_needed
 from .manifest import record_manifest
 from .parser import create_parser
 from .runtime import detect_runtime
+from .staged_dirs import discard_staged_dirs
 
 __all__ = ["main", "shell_remote"]
 
@@ -108,12 +109,6 @@ def main() -> None:
     # Generate unique instance ID early - used for both cache dir and container ID
     instance_id = uuid.uuid4().hex[:12]
 
-    # Extract embedded devcontainer files to instance-specific cache directory
-    # This prevents race conditions when multiple instances run concurrently
-    cache_dir = extract_devcontainer_files(instance_id)
-    devcontainer_dir = cache_dir / ".devcontainer"
-    source_config = devcontainer_dir / "devcontainer.json"
-
     # Setup runtime directory for SSH config etc (shared, not instance-specific)
     runtime_dir = Path.home() / ".claude" / "lamp-the-djinn-runtime"
     runtime_dir.mkdir(parents=True, exist_ok=True)
@@ -130,60 +125,72 @@ def main() -> None:
     harness_cache_dir = Path.home() / ".cache" / "lamp-the-djinn" / "harness-cache"
     harness_cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # Strict mode (default): stage a disposable, allowlisted copy of the host
-    # ~/.claude config into this instance's cache dir and mount THAT instead of
-    # the live host config. Trusted mode skips this and binds the host directly.
-    claude_stage_dir: Path | None = None
-    if not args.trusted:
-        claude_stage_dir = cache_dir / "claude-config-stage"
-        stage_claude_config(Path.home(), claude_stage_dir)
+    # Extract embedded devcontainer files to instance-specific cache directory
+    # This prevents race conditions when multiple instances run concurrently
+    cache_dir = extract_devcontainer_files(instance_id)
+    # The workspace will hold secrets (staged keyring, gh token in
+    # devcontainer.json), so it is discarded on every exit path from here on.
+    try:
+        devcontainer_dir = cache_dir / ".devcontainer"
+        source_config = devcontainer_dir / "devcontainer.json"
 
-    # Signing: stage a disposable copy of the host keyring and mount THAT. The
-    # host ~/.gnupg is never mounted (see stage_gnupg_config); the copy holds
-    # private key material, so it is deleted when the cage comes down.
-    gnupg_stage_dir: Path | None = None
-    if args.gpg_key_id:
-        gnupg_stage_dir = cache_dir / "gnupg-stage"
-        stage_gnupg_config(Path.home(), gnupg_stage_dir)
+        # Strict mode (default): stage a disposable, allowlisted copy of the host
+        # ~/.claude config into this instance's cache dir and mount THAT instead of
+        # the live host config. Trusted mode skips this and binds the host directly.
+        claude_stage_dir: Path | None = None
+        if not args.trusted:
+            claude_stage_dir = cache_dir / "claude-config-stage"
+            stage_claude_config(Path.home(), claude_stage_dir)
 
-    # Load and modify config
-    config = json.loads(source_config.read_text())
-    config = modify_config(
-        config,
-        args,
-        runtime_dir,
-        devcontainer_dir,
-        project_dir,
-        proxy_url=proxy_url,
-        model=args.model,
-        proxy_api_key=args.proxy_api_key,
-        runtime=runtime,
-        trusted=args.trusted,
-        claude_stage_dir=claude_stage_dir,
-        gnupg_stage_dir=gnupg_stage_dir,
-    )
+        # Signing: stage a disposable copy of the host keyring and mount THAT. The
+        # host ~/.gnupg is never mounted (see stage_gnupg_config); the copy holds
+        # private key material, so it is deleted with the workspace (below).
+        gnupg_stage_dir: Path | None = None
+        if args.gpg_key_id:
+            gnupg_stage_dir = cache_dir / "gnupg-stage"
+            stage_gnupg_config(Path.home(), gnupg_stage_dir)
 
-    # Write modified config back to the temp devcontainer dir
-    runtime_config = devcontainer_dir / "devcontainer.json"
-    runtime_config.write_text(json.dumps(config, indent=2))
+        # Load and modify config
+        config = json.loads(source_config.read_text())
+        config = modify_config(
+            config,
+            args,
+            runtime_dir,
+            devcontainer_dir,
+            project_dir,
+            proxy_url=proxy_url,
+            model=args.model,
+            proxy_api_key=args.proxy_api_key,
+            runtime=runtime,
+            trusted=args.trusted,
+            claude_stage_dir=claude_stage_dir,
+            gnupg_stage_dir=gnupg_stage_dir,
+        )
 
-    # Dirs Docker will create as ROOT for any home-nested `-v` mount; ltd re-owns
-    # them to the cage user once the cage is up so a single-file mount stays
-    # writable (e.g. pi's session dir beside models.json).
-    mount_parent_dirs = home_mount_parent_dirs(args.volume, Path.home().resolve())
+        # Write modified config back to the temp devcontainer dir
+        runtime_config = devcontainer_dir / "devcontainer.json"
+        runtime_config.write_text(json.dumps(config, indent=2))
 
-    run_devcontainer(
-        runtime_config,
-        cache_dir,
-        project_dir,
-        args.command,
-        args.shell,
-        args.safe_mode,
-        instance_id,
-        mount_parent_dirs=mount_parent_dirs,
-        debug=args.debug,
-        discard_dirs=[d for d in (gnupg_stage_dir,) if d is not None],
-    )
+        # Dirs Docker will create as ROOT for any home-nested `-v` mount; ltd re-owns
+        # them to the cage user once the cage is up so a single-file mount stays
+        # writable (e.g. pi's session dir beside models.json).
+        mount_parent_dirs = home_mount_parent_dirs(args.volume, Path.home().resolve())
+
+        run_devcontainer(
+            runtime_config,
+            cache_dir,
+            project_dir,
+            args.command,
+            args.shell,
+            args.safe_mode,
+            instance_id,
+            mount_parent_dirs=mount_parent_dirs,
+            debug=args.debug,
+            discard_dirs=[cache_dir],
+        )
+
+    finally:
+        discard_staged_dirs([cache_dir])
 
 
 def shell_remote() -> None:
