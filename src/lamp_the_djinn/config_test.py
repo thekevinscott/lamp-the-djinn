@@ -61,13 +61,12 @@ def describe_dual_env_injection():
             tmp_path,
             proxy_url="http://host.docker.internal:4000/v1",
             model="glm-5.2",
-            proxy_api_key="k",
         )
         run_args = _run_args(config)
         joined = " ".join(run_args)
         assert "OPENAI_BASE_URL=http://host.docker.internal:4000/v1" in run_args
         assert "OPENAI_MODEL=glm-5.2" in run_args
-        assert "ANTHROPIC_BASE_URL=http://host.docker.internal:4000/v1" in run_args
+        assert "ANTHROPIC_BASE_URL=http://host.docker.internal:4000" in run_args
         assert "ANTHROPIC_MODEL=glm-5.2" in run_args
         # host.docker.internal mapping is added so the cage can reach the proxy.
         assert "--add-host=host.docker.internal:host-gateway" in run_args

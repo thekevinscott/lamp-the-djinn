@@ -73,9 +73,42 @@ def describe_proxy_engagement():
         mocks = _wire(tmp_path, ["npx", "pi"])
         assert mocks["modify_config"].call_args.kwargs["proxy_url"] is None
 
+    def it_hands_the_model_to_the_cage_defaulting_to_local(tmp_path: Path):
+        assert _wire(tmp_path, ["--model", "glm-5.2"])["modify_config"].call_args.kwargs["model"] == "glm-5.2"
+        assert _wire(tmp_path, [])["modify_config"].call_args.kwargs["model"] == "local"
+
     def it_honors_an_explicit_proxy_url(tmp_path: Path):
         mocks = _wire(tmp_path, ["--proxy-url", "http://elsewhere:9/v1"])
         assert mocks["modify_config"].call_args.kwargs["proxy_url"] == "http://elsewhere:9/v1"
+
+
+def describe_the_environment():
+    """ltd is configured by flags only; LTD_* variables are not read."""
+
+    def it_ignores_ltd_variables(tmp_path: Path):
+        env = {
+            "LTD_TRUSTED": "1",
+            "LTD_GH_TOKEN": "ghp_x",
+            "LTD_GPG_KEY_ID": "ABC",
+            "LTD_MODEL": "m",
+            "LTD_PROXY_URL": "http://p:1/v1",
+            "LTD_PROXY_API_KEY": "secret",
+            "LTD_RUNTIME": "kata-runtime",
+            "LTD_MEMORY": "4g",
+            "LTD_DEBUG": "1",
+        }
+        with mock.patch.dict("os.environ", env):
+            mocks = _wire(tmp_path, [])
+        args = mocks["modify_config"].call_args.args[1]
+        assert (args.trusted, args.gh_token, args.gpg_key_id, args.memory, args.debug) == (
+            False,
+            None,
+            None,
+            None,
+            False,
+        )
+        assert mocks["modify_config"].call_args.kwargs["proxy_url"] is None
+        assert mocks["detect_runtime"].call_args.args == ("auto",)
 
 
 def describe_ssh_key_preflight():

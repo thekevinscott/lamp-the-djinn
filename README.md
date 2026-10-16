@@ -36,8 +36,7 @@ ltd pi -c                    # harness flags pass through: pi's -c resumes its l
 ltd --safe-mode              # bare claude with permission prompts on
 ```
 
-When you pass a command, a `--model`, or a `--proxy-url` (or set `LTD_MODEL` /
-`LTD_PROXY_URL`), ltd wires the harness to a LiteLLM proxy on the host and
+When you pass a command, a `--model`, or a `--proxy-url`, ltd wires the harness to a LiteLLM proxy on the host and
 injects both provider env families (`OPENAI_*` and `ANTHROPIC_*`) so the agent
 finds whichever it speaks. Bare `ltd` with none of these stays fully
 backward-compatible: no proxy, just claude.
@@ -111,10 +110,7 @@ The token and the keyring copy are written only to that run's workspace dir unde
 `~/.cache/lamp-the-djinn/`, which ltd deletes when the run ends. If `devcontainer
 up` fails, ltd prints one `Error:` line and exits with its status.
 
-Many options can also come from an `LTD_*` environment variable, named in
-`ltd --help`. The on/off ones, `LTD_TRUSTED` and `LTD_DEBUG`, are booleans:
-`0`, `false`, `no`, `off`, or empty (any case) leaves the option off, and any
-other value turns it on.
+ltd is configured by its flags only; it reads no `LTD_*` environment variables.
 
 ## Allowlisting extra egress domains
 
@@ -126,8 +122,7 @@ without rebuilding the image:
   `~/.config/lamp-the-djinn/allowed-domains.txt`. ltd mounts it read-only into
   every cage and the firewall resolves it at startup. Use this for domains you
   always want reachable on this machine.
-- **Per-run, this cage only**: pass `--allow-domains-file PATH` (or set
-  `LTD_ALLOW_DOMAINS_FILE`). ltd mounts that file read-only into the single cage
+- **Per-run, this cage only**: pass `--allow-domains-file PATH`. ltd mounts that file read-only into the single cage
   it launches, so only that run gets the extra domains.
 
 ```bash

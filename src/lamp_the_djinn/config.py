@@ -23,7 +23,6 @@ def modify_config(
     project_dir: Path | None = None,
     proxy_url: str | None = None,
     model: str | None = None,
-    proxy_api_key: str | None = None,
     runtime: str = "runc",
     trusted: bool = False,
     claude_stage_dir: Path | None = None,
@@ -206,8 +205,7 @@ def modify_config(
     # Wire whatever command runs in the cage to the LiteLLM proxy on the host.
     if proxy_url:
         # Generic provider env (OPENAI_*/ANTHROPIC_*) for harnesses that read it.
-        api_key = proxy_api_key or "lamp-the-djinn"
-        prov_env = harness_mod.provider_env_all(proxy_url, model or "local", api_key)
+        prov_env = harness_mod.provider_env_all(proxy_url, model or "local", "lamp-the-djinn")
         for key, value in prov_env.items():
             config["runArgs"].extend(["-e", f"{key}={value}"])
 

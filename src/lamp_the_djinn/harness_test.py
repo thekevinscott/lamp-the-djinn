@@ -22,13 +22,16 @@ def describe_provider_env_all():
         assert env["OPENAI_BASE_URL"] == "http://host.docker.internal:4000/v1"
         assert env["OPENAI_API_KEY"] == "k"
         assert env["OPENAI_MODEL"] == "glm-5.2"
-        assert env["ANTHROPIC_BASE_URL"] == "http://host.docker.internal:4000/v1"
+        assert env["ANTHROPIC_BASE_URL"] == "http://host.docker.internal:4000"
         assert env["ANTHROPIC_AUTH_TOKEN"] == "k"
         assert env["ANTHROPIC_MODEL"] == "glm-5.2"
 
-    def it_honors_anthropic_proxy_override():
-        """LTD_ANTHROPIC_PROXY_URL overrides only the anthropic base URL."""
+    def it_points_anthropic_at_the_proxy_root():
+        """The Anthropic SDK appends /v1/messages itself, so a trailing /v1 is dropped."""
+        assert provider_env_all("http://h:4000/v1", "local", "k")["ANTHROPIC_BASE_URL"] == "http://h:4000"
+        assert provider_env_all("http://h:4000/x", "local", "k")["ANTHROPIC_BASE_URL"] == "http://h:4000/x"
+
+    def it_ignores_the_ltd_anthropic_proxy_url_variable():
         with mock.patch.dict("os.environ", {"LTD_ANTHROPIC_PROXY_URL": "http://h:4000/anthropic"}):
             env = provider_env_all("http://h:4000/v1", "local", "k")
-        assert env["OPENAI_BASE_URL"] == "http://h:4000/v1"
-        assert env["ANTHROPIC_BASE_URL"] == "http://h:4000/anthropic"
+        assert env["ANTHROPIC_BASE_URL"] == "http://h:4000"

@@ -26,14 +26,12 @@ inject BOTH provider families and let the harness pick up whichever it reads:
 NOTE on ``ANTHROPIC_BASE_URL``: Claude Code's native ``/v1/messages`` calls
 speak the Anthropic Messages format, which LiteLLM exposes on its
 *anthropic-format* passthrough endpoint. That endpoint may live at a DIFFERENT
-path than the ``/v1`` OpenAI-compatible one. We default ``ANTHROPIC_BASE_URL``
-to the same proxy URL for convenience, but allow an explicit override via the
-``LTD_ANTHROPIC_PROXY_URL`` env var when LiteLLM's anthropic path differs.
+path than the ``/v1`` OpenAI-compatible one: the Anthropic SDK appends
+``/v1/messages`` itself, so ``ANTHROPIC_BASE_URL`` is the proxy URL with any
+trailing ``/v1`` dropped.
 """
 
 from __future__ import annotations
-
-import os
 
 
 def provider_env_all(proxy_url: str, model: str, api_key: str) -> dict[str, str]:
@@ -44,11 +42,9 @@ def provider_env_all(proxy_url: str, model: str, api_key: str) -> dict[str, str]
     proxy abstracts local-llama-vs-OpenRouter behind one endpoint, so the same
     three knobs (base URL, key, model) configure every backend.
 
-    The Anthropic base URL defaults to ``proxy_url`` but honors an
-    ``LTD_ANTHROPIC_PROXY_URL`` override, because LiteLLM's anthropic-format
-    endpoint may differ from the ``/v1`` OpenAI path (see module docstring).
+    The Anthropic base URL drops a trailing ``/v1`` (see module docstring).
     """
-    anthropic_url = os.environ.get("LTD_ANTHROPIC_PROXY_URL") or proxy_url
+    anthropic_url = proxy_url.removesuffix("/v1")
     return {
         "OPENAI_BASE_URL": proxy_url,
         "OPENAI_API_KEY": api_key,
