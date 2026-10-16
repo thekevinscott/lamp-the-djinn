@@ -88,8 +88,6 @@ def run_devcontainer(
             print(f"Starting devcontainer (instance {instance_id}, command: {' '.join(run_cmd)})...")
             child = subprocess.Popen(up_cmd)
             child.wait()
-            if child.returncode != 0:
-                raise subprocess.CalledProcessError(child.returncode, up_cmd)
         else:
             # Quiet (default): only the agent's own output reaches the terminal.
             # Transient status on a TTY only, so piped output stays clean.
@@ -105,7 +103,9 @@ def run_devcontainer(
             if child.returncode != 0:
                 sys.stderr.write(up_out)
                 sys.stderr.write(up_err)
-                raise subprocess.CalledProcessError(child.returncode, up_cmd)
+        if child.returncode != 0:
+            print(f"Error: devcontainer up failed (exit {child.returncode})", file=sys.stderr)
+            sys.exit(child.returncode)
 
         # Docker creates absent parent dirs of a home-nested mount owned by root.
         # Re-own them from the host, never via in-cage sudo.
@@ -119,7 +119,6 @@ def run_devcontainer(
         signal.signal(signal.SIGTERM, previous_sigterm)
         signal.signal(signal.SIGHUP, previous_sighup)
         teardown_cage(id_label)
-        discard_staged_dirs(discard_dirs or [])
 
     # A child killed by signal N reports -N; map it to the shell's 128+N.
     sys.exit(rc if rc >= 0 else 128 - rc)

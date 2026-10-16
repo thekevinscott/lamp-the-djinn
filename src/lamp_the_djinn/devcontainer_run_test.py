@@ -83,32 +83,24 @@ def describe_run_devcontainer():
         exit_exc, _, _, _ = _run(popen)
         assert exit_exc.code == 137
 
-    def it_tears_the_cage_down_even_when_up_fails():
-        """`up` returning non-zero must not leak a half-created cage."""
-        popen = mock.Mock(side_effect=[_popen(1)])
-        with (
-            mock.patch("lamp_the_djinn.devcontainer_run.subprocess.Popen", popen),
-            mock.patch("lamp_the_djinn.devcontainer_run.teardown_cage") as teardown,
-            mock.patch("lamp_the_djinn.devcontainer_run.fix_mount_dir_ownership"),
-        ):
-            with pytest.raises(Exception):  # noqa: B017 - CalledProcessError propagates
-                run_devcontainer(
-                    Path("/cfg/devcontainer.json"),
-                    Path("/ws"),
-                    Path("/proj"),
-                    instance_id="xyz",
-                    debug=True,
-                )
+    def it_tears_down_and_exits_with_a_one_line_error_when_up_fails(capsys: pytest.CaptureFixture[str]):
+        """`up` failing must not leak a half-created cage, nor a traceback."""
+        popen = mock.Mock(side_effect=[_popen(7)])
+        exit_exc, teardown, _, _ = _run(popen)
+
+        assert exit_exc.code == 7
+        assert capsys.readouterr().err == "Error: devcontainer up failed (exit 7)\n"
         teardown.assert_called_once_with("clanker.instance=xyz")
+        assert popen.call_count == 1
+
+    def it_stops_when_up_is_killed_by_a_signal():
+        popen = mock.Mock(side_effect=[_popen(-15)])
+        exit_exc, _, _, _ = _run(popen)
+
+        assert exit_exc.code != 0
+        assert popen.call_count == 1
 
     def it_tears_the_cage_down_on_success():
         popen = mock.Mock(side_effect=[_popen(0), _popen(0)])
         _, teardown, _, _ = _run(popen)
         teardown.assert_called_once_with("clanker.instance=xyz")
-
-    def it_discards_the_staged_dirs_once_the_cage_is_down():
-        """The staged keyring holds private key material; it must not outlive the run."""
-        popen = mock.Mock(side_effect=[_popen(0), _popen(0)])
-        _, _, _, discard = _run(popen, discard_dirs=[Path("/cache/gnupg-stage")])
-
-        discard.assert_called_once_with([Path("/cache/gnupg-stage")])

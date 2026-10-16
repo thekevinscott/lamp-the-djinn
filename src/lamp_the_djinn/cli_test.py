@@ -21,7 +21,7 @@ pytestmark = pytest.mark.unit
 _CalledProcessError = main.__globals__["subprocess"].CalledProcessError
 
 
-def _wire(tmp_path: Path, argv: list[str]):
+def _wire(tmp_path: Path, argv: list[str], **side_effects):
     """Patch every collaborator main calls, and run it under `argv`.
 
     Returns the mock registry so a cell can assert on the wiring. The devcontainer
@@ -50,6 +50,8 @@ def _wire(tmp_path: Path, argv: list[str]):
         mocks["detect_runtime"].return_value = "runc"
         mocks["modify_config"].return_value = {}
         mocks["home_mount_parent_dirs"].return_value = []
+        for name, effect in side_effects.items():
+            mocks[name].side_effect = effect
         with (
             mock.patch("sys.argv", ["ltd", *argv]),
             mock.patch("pathlib.Path.home", return_value=tmp_path / "home"),
@@ -148,13 +150,38 @@ def describe_cage_wiring():
         mocks["stage_gnupg_config"].assert_not_called()
         assert mocks["modify_config"].call_args.kwargs["gnupg_stage_dir"] is None
 
-    def it_hands_the_staged_keyring_to_the_cage_and_marks_it_for_discard(tmp_path: Path):
+    def it_hands_the_staged_keyring_to_the_cage(tmp_path: Path):
         mocks = _wire(tmp_path, ["--gpg-key-id", "C567F8478F289CC4"])
 
         mocks["stage_gnupg_config"].assert_called_once()
-        stage = mocks["modify_config"].call_args.kwargs["gnupg_stage_dir"]
-        assert stage is not None
-        assert mocks["run_devcontainer"].call_args.kwargs["discard_dirs"] == [stage]
+        assert mocks["modify_config"].call_args.kwargs["gnupg_stage_dir"] == tmp_path / "cache" / "gnupg-stage"
+
+
+def describe_workspace_discard():
+    """The workspace dir holds the staged keyring and the gh token; it never outlives the run."""
+
+    def it_marks_the_workspace_for_discard_on_a_signal(tmp_path: Path):
+        mocks = _wire(tmp_path, [])
+        assert mocks["run_devcontainer"].call_args.kwargs["discard_dirs"] == [tmp_path / "cache"]
+
+    def it_writes_the_runtime_config_pretty_printed_for_the_run(tmp_path: Path):
+        written = []
+        _wire(
+            tmp_path,
+            [],
+            modify_config=lambda *a, **k: {"a": 1},
+            run_devcontainer=lambda config_path, *a, **k: written.append(config_path.read_text()),
+        )
+        assert written == ['{\n  "a": 1\n}']
+
+    def it_discards_the_workspace_after_the_run(tmp_path: Path):
+        _wire(tmp_path, [])
+        assert not (tmp_path / "cache").exists()
+
+    def it_discards_the_workspace_when_setup_fails(tmp_path: Path):
+        with pytest.raises(RuntimeError):
+            _wire(tmp_path, ["--gpg-key-id", "C567F8478F289CC4"], modify_config=RuntimeError("boom"))
+        assert not (tmp_path / "cache").exists()
 
 
 def describe_the_admin_subcommand():

@@ -106,6 +106,10 @@ uvx --from git+https://github.com/thekevinbot/lamp-the-djinn lamp-the-djinn \
   --gh-token ghp_your_github_token
 ```
 
+The token and the keyring copy are written only to that run's workspace dir under
+`~/.cache/lamp-the-djinn/`, which ltd deletes when the run ends. If `devcontainer
+up` fails, ltd prints one `Error:` line and exits with its status.
+
 Many options can also come from an `LTD_*` environment variable, named in
 `ltd --help`. The on/off ones, `LTD_TRUSTED` and `LTD_DEBUG`, are booleans:
 `0`, `false`, `no`, `off`, or empty (any case) leaves the option off, and any
