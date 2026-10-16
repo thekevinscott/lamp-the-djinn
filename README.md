@@ -20,7 +20,8 @@ uvx --from git+https://github.com/thekevinbot/lamp-the-djinn lamp-the-djinn
 
 The command after ltd's own options is what runs inside the cage:
 `ltd [ltd-opts] <command...>`. The command's own flags are passed through
-untouched (ltd's option parsing stops at the first command token).
+untouched (ltd's option parsing stops at the first command token). A leading
+`--` separator is accepted and dropped: `ltd -- claude` runs `claude`.
 
 ```bash
 ltd                          # bare: runs `claude --dangerously-skip-permissions`

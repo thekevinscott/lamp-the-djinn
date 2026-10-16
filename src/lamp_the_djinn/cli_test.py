@@ -139,6 +139,20 @@ def describe_cage_wiring():
         mocks = _wire(tmp_path, ["npx", "-y", "aider"])
         mocks["record_manifest"].assert_called_once_with(["npx", "-y", "aider"])
 
+    def it_drops_a_leading_double_dash_separator(tmp_path: Path):
+        """`ltd -- claude` runs claude, not a binary named `--`."""
+        mocks = _wire(tmp_path, ["--", "npx", "-y", "aider"])
+        mocks["record_manifest"].assert_called_once_with(["npx", "-y", "aider"])
+        assert mocks["run_devcontainer"].call_args.args[3] == ["npx", "-y", "aider"]
+
+    def it_keeps_a_double_dash_that_belongs_to_the_command(tmp_path: Path):
+        mocks = _wire(tmp_path, ["git", "log", "--", "x"])
+        assert mocks["run_devcontainer"].call_args.args[3] == ["git", "log", "--", "x"]
+
+    def it_drops_only_an_exact_double_dash(tmp_path: Path):
+        mocks = _wire(tmp_path, ["-", "x"])
+        assert mocks["run_devcontainer"].call_args.args[3] == ["-", "x"]
+
     def it_hands_the_resolved_runtime_to_modify_config(tmp_path: Path):
         mocks = _wire(tmp_path, [])
         assert mocks["modify_config"].call_args.kwargs["runtime"] == "runc"

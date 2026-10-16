@@ -42,6 +42,9 @@ def main() -> None:
     """
     parser = create_parser()
     args = parser.parse_args()
+    # REMAINDER keeps a leading `--` separator; `ltd -- claude` must run claude.
+    if args.command[:1] == ["--"]:
+        args.command = args.command[1:]
 
     # Host-side: no cage, no Docker probe. Must dispatch before the setup below.
     if is_admin_command(args.command):
