@@ -1,5 +1,7 @@
 """Unit tests for first_non_flag: the package-spec scan behind record_manifest."""
 
+from typing import get_type_hints
+
 import pytest
 
 from lamp_the_djinn.first_non_flag import first_non_flag
@@ -36,3 +38,6 @@ def describe_first_non_flag():
 
     def it_returns_none_for_a_trailing_package_option():
         assert first_non_flag(["--from"], {"--from"}) is None
+
+    def it_declares_an_optional_str_return():
+        assert get_type_hints(first_non_flag)["return"] == str | None
