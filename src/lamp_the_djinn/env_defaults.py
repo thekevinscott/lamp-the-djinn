@@ -3,6 +3,12 @@
 import argparse
 import os
 
+_FALSEY = {"", "0", "false", "no", "off"}
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").lower() not in _FALSEY
+
 
 def apply_env_defaults(args: argparse.Namespace) -> None:
     """Apply environment variable defaults to args."""
@@ -18,9 +24,9 @@ def apply_env_defaults(args: argparse.Namespace) -> None:
     # Isolation runtime preference. "auto" resolves to the lightest sane runtime
     # (runc); gVisor/Kata are opt-in via --runtime / LTD_RUNTIME only.
     args.runtime = args.runtime or os.environ.get("LTD_RUNTIME") or "auto"
-    args.debug = args.debug or bool(os.environ.get("LTD_DEBUG"))
+    args.debug = args.debug or _env_flag("LTD_DEBUG")
     # Trust tier for ~/.claude CONFIG exposure (default strict). Opt-in only.
-    args.trusted = args.trusted or bool(os.environ.get("LTD_TRUSTED"))
+    args.trusted = args.trusted or _env_flag("LTD_TRUSTED")
     # Per-cage memory cap. Falls back to the 2g default inside modify_config.
     args.memory = args.memory or os.environ.get("LTD_MEMORY")
     # Per-run egress allowlist file. Host-only (the agent can't set this), mounted

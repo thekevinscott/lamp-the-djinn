@@ -61,6 +61,26 @@ def describe_trusted_flag_and_env():
         assert args.trusted is True
 
 
+def describe_boolean_env_values():
+    """LTD_TRUSTED and LTD_DEBUG read as booleans, not as "any non-empty string"."""
+
+    @pytest.mark.parametrize("name", ["trusted", "debug"])
+    @pytest.mark.parametrize("value", ["0", "false", "FALSE", "no", "No", "off", "OFF", ""])
+    def it_treats_falsey_spellings_as_off(name, value):
+        args = _unset_args()
+        with mock.patch.dict("os.environ", {f"LTD_{name.upper()}": value}, clear=True):
+            apply_env_defaults(args)
+        assert getattr(args, name) is False
+
+    @pytest.mark.parametrize("name", ["trusted", "debug"])
+    @pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "on"])
+    def it_treats_truthy_spellings_as_on(name, value):
+        args = _unset_args()
+        with mock.patch.dict("os.environ", {f"LTD_{name.upper()}": value}, clear=True):
+            apply_env_defaults(args)
+        assert getattr(args, name) is True
+
+
 def describe_memory_env():
     """The per-cage cap can arrive from the environment."""
 
