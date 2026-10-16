@@ -24,3 +24,11 @@ coverage = { branch = true, fail_under = 50 }
 path = "lamp_the_djinn/__init__.py"
 rules = ["colocated-test"]
 reason = "package marker: module docstring + __version__, no logic to test"
+
+# Python 3.14 evaluates annotations lazily, so mutating the `|` in
+# `-> str | None` changes nothing observable: these mutants are equivalent.
+[[python.exempt]]
+path = "lamp_the_djinn/first_non_flag.py"
+rules = ["mutation"]
+lines = [21]
+reason = "equivalent: lazily evaluated return annotation `str | None`"

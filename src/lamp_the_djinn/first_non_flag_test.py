@@ -21,3 +21,18 @@ def describe_first_non_flag():
 
     def it_returns_none_for_an_empty_list():
         assert first_non_flag([]) is None
+
+    def it_skips_the_value_of_an_option_that_takes_one():
+        assert first_non_flag(["--registry", "http://x", "pkg"]) == "pkg"
+
+    def it_skips_a_uv_option_value():
+        assert first_non_flag(["--python", "3.12", "ruff"]) == "ruff"
+
+    def it_returns_the_value_of_a_package_option():
+        assert first_non_flag(["-p", "left-pad", "left-pad-bin"], {"-p"}) == "left-pad"
+
+    def it_returns_the_value_of_an_inline_package_option():
+        assert first_non_flag(["--from=httpie", "http"], {"--from"}) == "httpie"
+
+    def it_returns_none_for_a_trailing_package_option():
+        assert first_non_flag(["--from"], {"--from"}) is None
