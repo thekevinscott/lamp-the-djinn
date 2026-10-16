@@ -41,6 +41,17 @@ def describe_record_manifest():
         assert "prettier" in lines
         assert "black" in lines
 
+    def it_takes_the_spec_from_each_runners_package_option(tmp_path: Path):
+        with mock.patch("pathlib.Path.home", return_value=tmp_path):
+            record_manifest(["npx", "-p", "left-pad", "left-pad-bin"])
+            record_manifest(["uvx", "-p", "3.12", "ruff"])
+        assert self_check(tmp_path) == ["left-pad", "ruff"]
+
+    def it_ignores_a_bare_uv_tool(tmp_path: Path):
+        with mock.patch("pathlib.Path.home", return_value=tmp_path):
+            record_manifest(["uv", "tool"])
+        assert self_check(tmp_path) == []
+
     def it_ignores_non_runner_commands(tmp_path: Path):
         with mock.patch("pathlib.Path.home", return_value=tmp_path):
             record_manifest(["claude", "-p", "hi"])
