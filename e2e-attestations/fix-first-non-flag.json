@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest -m e2e -rs tests/e2e/coding_agent_test.py tests/e2e/mount_permissions_test.py tests/e2e/admin_tui_test.py",
+  "ran_at": 1792150216,
+  "exit_code": 0,
+  "commit": "c7f63ddba4dcdbb83d73dbcc5edbda97e8272c8a",
+  "branch": "fix/first-non-flag"
+}
