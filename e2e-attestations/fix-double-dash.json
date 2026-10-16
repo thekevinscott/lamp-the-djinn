@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest -m e2e -rs tests/e2e/coding_agent_test.py tests/e2e/mount_permissions_test.py tests/e2e/admin_tui_test.py",
+  "ran_at": 1792150196,
+  "exit_code": 0,
+  "commit": "39e05b52d337fcc6fb5bd6db64448eb49ad1e7c1",
+  "branch": "fix/double-dash"
+}
