@@ -16,6 +16,10 @@ lamp-the-djinn runs **any** coding agent inside a Docker container — `claude`,
 uvx --from git+https://github.com/thekevinbot/lamp-the-djinn lamp-the-djinn
 ```
 
+It needs Docker on your `PATH` with the daemon running. If either is missing,
+`ltd` exits 1 with a banner saying which ("not installed" or "not running")
+instead of a traceback.
+
 ## Usage
 
 The command after ltd's own options is what runs inside the cage:
