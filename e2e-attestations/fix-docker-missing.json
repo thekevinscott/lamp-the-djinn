@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest -m e2e -rs tests/e2e/coding_agent_test.py tests/e2e/mount_permissions_test.py tests/e2e/admin_tui_test.py",
+  "ran_at": 1792150183,
+  "exit_code": 0,
+  "commit": "77ddd33180c8bf24bf68ca4ca2d4780b264182d7",
+  "branch": "fix/docker-missing"
+}
