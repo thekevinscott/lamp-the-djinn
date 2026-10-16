@@ -1,0 +1,7 @@
+{
+  "command": "uv run pytest -m e2e -rs tests/e2e/coding_agent_test.py tests/e2e/mount_permissions_test.py tests/e2e/admin_tui_test.py tests/e2e/agent_matrix_test.py -k \"not terminated and not home_mounted and not (pi and runc)\"",
+  "ran_at": 1792153616,
+  "exit_code": 0,
+  "commit": "46125c5266fba588c14980ef0d732a867a32aa02",
+  "branch": "remove-env-vars"
+}
