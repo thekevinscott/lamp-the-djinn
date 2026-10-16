@@ -48,7 +48,7 @@ def host(tmp_path: Path) -> Iterator[Path]:
     project = tmp_path / "proj"
     project.mkdir()
 
-    env = {k: v for k, v in os.environ.items() if k not in ("LTD_GH_TOKEN", "FAKE_UP_RC")}
+    env = {k: v for k, v in os.environ.items() if k != "FAKE_UP_RC"}
     env.update(HOME=str(home), PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     with (
         mock.patch.dict("os.environ", env, clear=True),

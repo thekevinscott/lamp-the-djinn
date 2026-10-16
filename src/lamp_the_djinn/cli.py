@@ -6,7 +6,6 @@ function per file, per `unit one-function-per-file`).
 """
 
 import json
-import os
 import subprocess
 import sys
 import uuid
@@ -19,7 +18,6 @@ from .container_banner import print_container_info
 from .devcontainer_files import extract_devcontainer_files
 from .devcontainer_run import run_devcontainer
 from .docker_check import check_docker_accessible
-from .env_defaults import apply_env_defaults
 from .gnupg_config import stage_gnupg_config
 from .home_mounts import home_mount_parent_dirs
 from .image import IMAGE_NAME, pull_docker_image_if_needed
@@ -51,18 +49,8 @@ def main() -> None:
     if is_admin_command(args.command):
         sys.exit(run_admin())
 
-    # Must run BEFORE apply_env_defaults coalesces everything to defaults.
     # Provider env is injected only on explicit opt-in.
-    proxy_engaged = any(
-        [
-            args.proxy_url is not None,
-            args.model is not None,
-            os.environ.get("LTD_PROXY_URL"),
-            os.environ.get("LTD_MODEL"),
-        ]
-    )
-
-    apply_env_defaults(args)
+    proxy_engaged = args.proxy_url is not None or args.model is not None
 
     # Record any package-runner command (npx/uvx/etc.) to the cache-freshness
     # manifest so the trusted nightly refresh can warm it ahead of time.
@@ -159,8 +147,7 @@ def main() -> None:
             devcontainer_dir,
             project_dir,
             proxy_url=proxy_url,
-            model=args.model,
-            proxy_api_key=args.proxy_api_key,
+            model=args.model or "local",
             runtime=runtime,
             trusted=args.trusted,
             claude_stage_dir=claude_stage_dir,

@@ -78,6 +78,35 @@ def describe_proxy_engagement():
         assert mocks["modify_config"].call_args.kwargs["proxy_url"] == "http://elsewhere:9/v1"
 
 
+def describe_the_environment():
+    """ltd is configured by flags only; LTD_* variables are not read."""
+
+    def it_ignores_ltd_variables(tmp_path: Path):
+        env = {
+            "LTD_TRUSTED": "1",
+            "LTD_GH_TOKEN": "ghp_x",
+            "LTD_GPG_KEY_ID": "ABC",
+            "LTD_MODEL": "m",
+            "LTD_PROXY_URL": "http://p:1/v1",
+            "LTD_PROXY_API_KEY": "secret",
+            "LTD_RUNTIME": "kata-runtime",
+            "LTD_MEMORY": "4g",
+            "LTD_DEBUG": "1",
+        }
+        with mock.patch.dict("os.environ", env):
+            mocks = _wire(tmp_path, [])
+        args = mocks["modify_config"].call_args.args[1]
+        assert (args.trusted, args.gh_token, args.gpg_key_id, args.memory, args.debug) == (
+            False,
+            None,
+            None,
+            None,
+            False,
+        )
+        assert mocks["modify_config"].call_args.kwargs["proxy_url"] is None
+        assert mocks["detect_runtime"].call_args.args == ("auto",)
+
+
 def describe_ssh_key_preflight():
     """A --ssh-key-file that does not exist fails before Docker is touched."""
 

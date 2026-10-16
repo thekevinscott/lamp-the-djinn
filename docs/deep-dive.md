@@ -30,7 +30,7 @@ a run never hard-fails on a missing runtime.
 Every harness talks to exactly one endpoint: a **LiteLLM proxy on the host**.
 The proxy holds the real credentials (OpenRouter key, local llama.cpp); the
 cage only ever sees the proxy's base URL and a placeholder key. When you opt
-in with `--model` / `--proxy-url` (or `LTD_MODEL` / `LTD_PROXY_URL`), ltd
+in with `--model` / `--proxy-url`, ltd
 injects both wire-format families into the cage — `OPENAI_*` for OpenAI-style
 harnesses, `ANTHROPIC_*` for Claude Code — and the harness picks up whichever
 it speaks.
@@ -51,7 +51,7 @@ Default-deny egress. `init-firewall.sh` runs at cage startup and allows only:
 
 - The baked-in domain allowlist (npm, PyPI, GitHub, …).
 - A machine-local supplement at `~/.config/lamp-the-djinn/allowed-domains.txt`.
-- A per-run file via `--allow-domains-file` (or `LTD_ALLOW_DOMAINS_FILE`).
+- A per-run file via `--allow-domains-file`.
 
 Both supplements are mounted **read-only** and read once at startup, before
 the agent runs — the agent can never widen its own egress. The cage reaches

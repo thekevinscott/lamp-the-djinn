@@ -56,7 +56,7 @@ A sandboxed devcontainer environment for running Claude Code with `--dangerously
 If you run lamp-the-djinn without `--ssh-key-file` first, then add it later, the SSH key won't be mounted. Docker cannot add mounts to running containers.
 
 **Workarounds:**
-1. Always set `LTD_SSH_KEY` env var from first run
+1. Always pass `--ssh-key-file` from the first run
 2. Manually remove container if mount config needs to change:
    ```bash
    docker ps -a --filter "label=devcontainer.local_folder=/path/to/project" -q | xargs docker rm -f
@@ -84,15 +84,15 @@ uv run lamp-the-djinn --shell "ssh -T git@github.com"
 
 ## CLI Arguments
 
-| Argument | Env Variable | Description |
-|----------|--------------|-------------|
-| `--ssh-key-file` | `LTD_SSH_KEY` | Path to SSH private key |
-| `--git-user-name` | `LTD_GIT_USER_NAME` | Git user.name |
-| `--git-user-email` | `LTD_GIT_USER_EMAIL` | Git user.email |
-| `--gh-token` | `LTD_GH_TOKEN` | GitHub token |
-| `--gpg-key-id` | `LTD_GPG_KEY_ID` | GPG key ID for signing |
-| `--build` | - | Build from local Dockerfile |
-| `--shell` | - | Run command instead of Claude Code |
+| Argument | Description |
+|----------|-------------|
+| `--ssh-key-file` | Path to SSH private key |
+| `--git-user-name` | Git user.name |
+| `--git-user-email` | Git user.email |
+| `--gh-token` | GitHub token |
+| `--gpg-key-id` | GPG key ID for signing |
+| `--build` | Build from local Dockerfile |
+| `--shell` | Run command instead of Claude Code |
 
 ## Key Files
 
@@ -100,7 +100,6 @@ uv run lamp-the-djinn --shell "ssh -T git@github.com"
 |------|---------|
 | `src/lamp_the_djinn/cli.py` | CLI entry points; the composition root that wires the modules below |
 | `src/lamp_the_djinn/parser.py` | ltd's own option surface |
-| `src/lamp_the_djinn/env_defaults.py` | LTD_* env fills unset options |
 | `src/lamp_the_djinn/config.py` | Turns the devcontainer template into this run's cage config |
 | `src/lamp_the_djinn/devcontainer_run.py` | Cage up / exec / teardown lifecycle |
 | `src/lamp_the_djinn/runtime.py` | OCI isolation runtime resolution |

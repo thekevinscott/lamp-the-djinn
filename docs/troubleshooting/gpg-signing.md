@@ -4,7 +4,7 @@ How signed commits work in the cage, and what to check when they don't.
 
 ## How it's wired
 
-Passing `--gpg-key-id YOUR_KEY_ID` (or setting `LTD_GPG_KEY_ID`) does three
+Passing `--gpg-key-id YOUR_KEY_ID` does three
 things at cage startup:
 
 1. Copies your host `~/.gnupg` into this run's cache dir and mounts **that
@@ -25,7 +25,7 @@ unsigned by default.
 
 ## Commits aren't signed at all
 
-You didn't pass `--gpg-key-id` (or set `LTD_GPG_KEY_ID`). Signing is opt-in;
+You didn't pass `--gpg-key-id`. Signing is opt-in;
 re-run with the flag.
 
 ## "No secret key" in the cage

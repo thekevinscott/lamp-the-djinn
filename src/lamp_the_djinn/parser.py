@@ -41,12 +41,11 @@ def create_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--runtime",
-        default=None,
+        default="auto",
         help="OCI isolation runtime for Docker (the isolation seam): "
         "'auto' (default) uses the lightest sane runtime, runc. "
         "gVisor/Kata are opt-in only -- pass a concrete name like 'runsc' or "
-        "'kata-runtime' (runsc breaks the egress firewall; Kata is full-VM). "
-        "Env: LTD_RUNTIME",
+        "'kata-runtime' (runsc breaks the egress firewall; Kata is full-VM).",
     )
     parser.add_argument(
         "--trusted",
@@ -54,13 +53,13 @@ def create_parser() -> argparse.ArgumentParser:
         help="Expose the host ~/.claude config READ-WRITE (live bind) instead of a "
         "disposable copy. Governs config exposure only -- not runtime or firewall. "
         "Default (strict) mounts an allowlisted copy so the agent never sees host "
-        "credentials and its config writes are discarded on exit. Env: LTD_TRUSTED",
+        "credentials and its config writes are discarded on exit",
     )
     parser.add_argument(
         "--memory",
         default=None,
         metavar="LIMIT",
-        help="Per-cage memory cap passed to docker (default: 2g). Env: LTD_MEMORY",
+        help="Per-cage memory cap passed to docker (default: 2g)",
     )
     parser.add_argument("--shell", metavar="CMD", help="Run a shell command instead of the harness (for testing)")
     parser.add_argument(
@@ -71,7 +70,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--debug",
         action="store_true",
-        help="Show all build/firewall/devcontainer output (default: only the agent's output). Env: LTD_DEBUG",
+        help="Show all build/firewall/devcontainer output (default: only the agent's output)",
     )
     # Docker run flags - passed directly to runArgs
     parser.add_argument(
@@ -102,8 +101,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--allow-domains-file",
         metavar="PATH",
         help="Open extra egress domains for THIS cage only: a file with one domain "
-        "per line, mounted read-only so the agent cannot widen its own egress. "
-        "Env: LTD_ALLOW_DOMAINS_FILE",
+        "per line, mounted read-only so the agent cannot widen its own egress.",
     )
     # The command to run inside the cage. REMAINDER captures everything after
     # ltd's own options verbatim, so the command's own flags (-p, -v, ...) are

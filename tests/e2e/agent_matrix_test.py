@@ -57,9 +57,7 @@ working setup; every knob is overridable:
                                           402s because pi always asks for 65536 tokens)
     LTD_E2E_CLAUDE_MODEL ................. claude model via proxy (default glm-5.2)
     LTD_E2E_CLAUDE_MAX_OUTPUT_TOKENS ..... claude output cap (default 4096)
-    LTD_E2E_ANTHROPIC_PROXY_URL .......... ltd's anthropic base (default :4000)
     LTD_E2E_PI_BASE_URL .................. pi provider baseUrl (default :4000/v1)
-    LTD_PROXY_API_KEY .................... proxy key (default lamp-the-djinn, matches ltd)
     LTD_E2E_SENTINEL ..................... soft-checked echo word (default BANANA)
 
 Any cell skips loudly when its precondition is absent: no Docker, no deployed
@@ -86,9 +84,8 @@ SENTINEL = os.environ.get("LTD_E2E_SENTINEL", "BANANA")
 PI_MODEL = os.environ.get("LTD_E2E_PI_MODEL", "qwen")
 CLAUDE_MODEL = os.environ.get("LTD_E2E_CLAUDE_MODEL", "glm-5.2")
 CLAUDE_MAX_TOKENS = os.environ.get("LTD_E2E_CLAUDE_MAX_OUTPUT_TOKENS", "4096")
-ANTHROPIC_PROXY_URL = os.environ.get("LTD_E2E_ANTHROPIC_PROXY_URL", "http://host.docker.internal:4000")
 PI_BASE_URL = os.environ.get("LTD_E2E_PI_BASE_URL", "http://host.docker.internal:4000/v1")
-PROXY_API_KEY = os.environ.get("LTD_PROXY_API_KEY", "lamp-the-djinn")
+PROXY_API_KEY = "lamp-the-djinn"  # ltd's fixed placeholder key
 PROXY_PROBE_URL = os.environ.get("LTD_E2E_PROXY_PROBE_URL", "http://127.0.0.1:4000/v1/models")
 # Tiny image used to prove kata can actually START a container (not just be listed).
 KATA_PROBE_IMAGE = os.environ.get("LTD_E2E_KATA_PROBE_IMAGE", "alpine")
@@ -323,7 +320,6 @@ def describe_running_an_agent_non_interactively():
                 prompt,
             ]
         else:
-            env["LTD_ANTHROPIC_PROXY_URL"] = ANTHROPIC_PROXY_URL
             argv = [
                 ltd,
                 "--model",
@@ -396,7 +392,7 @@ def describe_running_an_agent_interactively():
                     "claude",
                 ]
             )
-            term_env = {"LTD_ANTHROPIC_PROXY_URL": ANTHROPIC_PROXY_URL}
+            term_env = None
             ready = "Welcome to Claude Code"
 
         # Wide enough that the ready banner is never line-wrapped; tall history so
