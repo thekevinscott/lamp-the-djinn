@@ -70,6 +70,15 @@ model_list:
           order: ["Cerebras"]
           allow_fallbacks: false
 
+  # ChatGPT subscription via device-code login (see `docker logs`); token stays in this container.
+  - model_name: gpt-6-sol
+    litellm_params:
+      model: chatgpt/gpt-6-sol
+
+  - model_name: gpt-6-astra
+    litellm_params:
+      model: chatgpt/gpt-6-astra
+
 litellm_settings:
   num_retries: 2
   request_timeout: 600
