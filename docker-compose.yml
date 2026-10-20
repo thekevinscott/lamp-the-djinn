@@ -12,6 +12,7 @@ services:
       - "4000:4000"
     volumes:
       - ./litellm/config.yaml:/app/config.yaml:ro
+      - chatgpt-auth:/root/.config/litellm/chatgpt
     env_file:
       - .env
     # Edit config.yaml without a manual restart: with `docker compose up -d --watch`,
@@ -22,3 +23,6 @@ services:
           path: ./litellm/config.yaml
           target: /app/config.yaml
     restart: unless-stopped
+
+volumes:
+  chatgpt-auth:

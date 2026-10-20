@@ -144,7 +144,7 @@ the baked-in list, the machine-local file, or the per-run file stays blocked.
 Two swappable seams (see [ARCHITECTURE.md](ARCHITECTURE.md) for the full design):
 
 - **Isolation seam**: the agent runs in Docker, accessing only the mounted project directory. Uses gVisor (`runsc`) automatically when it's installed, else stock `runc`; a remote Fly (Firecracker microVM) backend is scaffolded in `fly/`.
-- **Provider seam**: one LiteLLM proxy on the host fronts your local llama.cpp and OpenRouter (e.g. GLM-5.2); the cage only ever sees the proxy, never the real key. Config edits hot-apply: run `docker compose up -d --watch` and compose syncs `litellm/config.yaml` into the container and restarts the proxy on every change.
+- **Provider seam**: one LiteLLM proxy on the host fronts your local llama.cpp, OpenRouter (e.g. GLM-5.2), and a ChatGPT subscription (`gpt-6-sol`, `gpt-6-astra`); the cage only ever sees the proxy, never the real key. The first ChatGPT request prints a device-code login URL in `docker compose logs litellm`; the token persists in the `chatgpt-auth` volume. Config edits hot-apply: run `docker compose up -d --watch` and compose syncs `litellm/config.yaml` into the container and restarts the proxy on every change.
 - **Network firewall**: default-deny outbound; allowlisted domains only, with an opt-in proxy-only mode.
 - **Cooldown cache**: harnesses are pre-fetched by a trusted nightly job with a minimum-release-age window and mounted read-only — supply-chain defense, so the untrusted agent never reaches a registry.
 - **Git as undo**: lean on `git reset --hard` as your escape hatch.
